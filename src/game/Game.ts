@@ -2,11 +2,12 @@ import Matter from "matter-js";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { LevelManager } from "./LevelManager";
-import type { ObstacleData, BumperData } from "./LevelManager";
+import type { ObstacleData, BumperData, TriangleData, CrossData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
+export type ObstacleType = "rect" | "circle" | "triangle" | "cross";
 
 export interface GoalEffect {
   x: number;
@@ -27,11 +28,9 @@ const TIME_LIMIT = 30;
 const DEFAULT_SPEED = 0.4;
 const MIN_SPEED = 0.2;
 const MAX_SPEED = 1.0;
-const SPEED_STEP = 0.1;
 const DEFAULT_RESTITUTION = 0.5;
 const MIN_RESTITUTION = 0.0;
 const MAX_RESTITUTION = 1.0;
-const RESTITUTION_STEP = 0.1;
 const MARBLE_RADIUS = 17;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
@@ -93,6 +92,23 @@ export class Game {
   private generatedBumpers: BumperData[] = [];
   private bumperBodies: Matter.Body[] = [];
   private bumperHitTimes: Map<number, number> = new Map();
+  private generatedTriangles: TriangleData[] = [];
+  private triangleBodies: Matter.Body[] = [];
+  private triangleHitTimes: Map<number, number> = new Map();
+  private generatedCrosses: CrossData[] = [];
+  private crossBodies: Matter.Body[] = [];
+  private crossHitTimes: Map<number, number> = new Map();
+  private crossDirections: number[] = [];
+  private obstaclePivots: ("center" | "left" | "right")[] = [];
+  private obstacleBasePositions: { x: number; y: number }[] = [];
+  private obstaclePhases: number[] = [];
+  private obstacleSpeeds: number[] = [];
+  private bumperPhases: number[] = [];
+  private bumperBaseSizes: number[] = [];
+  private trianglePhases: number[] = [];
+  private triangleBasePositions: { x: number; y: number }[] = [];
+  private elapsed = 0;
+  private selectedObstacles: Set<ObstacleType> = new Set();
   private marbleHits: Map<number, number> = new Map();
   private marblesFallen = 0;
   private seed: number | null = null;
@@ -154,6 +170,7 @@ export class Game {
   };
 
   private update(dt: number): void {
+    this.elapsed += dt;
     if (this.timerStarted && this.state !== "clear" && this.state !== "fail" && this.state !== "title") {
       this.timeRemaining -= dt;
       if (this.timeRemaining <= 0) {
@@ -175,6 +192,68 @@ export class Game {
       Matter.Engine.update(this.engine, (1000 / 60) * timeScale);
       this.checkGoal();
       this.checkOutOfBounds();
+    }
+
+    // しかく障害物をゆらゆら揺らします
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      const MAX_ANGLE = (20 * Math.PI) / 180;
+      for (let i = 0; i < this.obstacleBodies.length; i++) {
+        const body = this.obstacleBodies[i]!;
+        const base = this.obstacleBasePositions[i]!;
+        const pivot = this.obstaclePivots[i]!;
+        const phase = this.obstaclePhases[i]!;
+        const speed = this.obstacleSpeeds[i]!;
+        const angle = Math.sin(this.elapsed * speed + phase) * MAX_ANGLE;
+        const obs = this.generatedObstacles[i]!;
+        const halfW = (obs.w * this.width) / 2;
+
+        let px = base.x;
+        const py = base.y;
+        if (pivot === "left") px = base.x - halfW;
+        else if (pivot === "right") px = base.x + halfW;
+
+        const dx = base.x - px;
+        const dy = base.y - py;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const newX = px + dx * cos - dy * sin;
+        const newY = py + dx * sin + dy * cos;
+
+        Matter.Body.setAngle(body, angle);
+        Matter.Body.setPosition(body, { x: newX, y: newY });
+      }
+    }
+
+    // まるの障害物を大きくなったり小さくなったりさせます
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.bumperBodies.length; i++) {
+        const body = this.bumperBodies[i]!;
+        const phase = this.bumperPhases[i]!;
+        const baseR = this.bumperBaseSizes[i]!;
+        const scale = 1 + Math.sin(this.elapsed * 1.2 + phase) * 0.3;
+        const currentR = baseR * scale;
+        const currentScale = currentR / (body.circleRadius ?? baseR);
+        Matter.Body.scale(body, currentScale, currentScale);
+      }
+    }
+
+    // さんかくの障害物を上下に動かします
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.triangleBodies.length; i++) {
+        const body = this.triangleBodies[i]!;
+        const base = this.triangleBasePositions[i]!;
+        const phase = this.trianglePhases[i]!;
+        const offsetY = Math.sin(this.elapsed * 1.0 + phase) * 40;
+        Matter.Body.setPosition(body, { x: base.x, y: base.y + offsetY });
+      }
+    }
+
+    // クロス障害物は常に回転させます
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.crossBodies.length; i++) {
+        const dir = this.crossDirections[i] ?? 1;
+        Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
+      }
     }
 
     // Update goal effects
@@ -205,7 +284,7 @@ export class Game {
     this.renderer.drawBackground(this.width, this.height);
 
     if (this.state === "title") {
-      this.renderer.drawTitleScreen(this.width, this.height, this.speed, this.restitution);
+      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles);
       return;
     }
 
@@ -221,12 +300,6 @@ export class Game {
 
     const level = this.levelManager.current();
     if (!level) return;
-
-    this.renderer.drawLevelBackground(
-      this.levelManager.currentLevel,
-      this.width,
-      this.height,
-    );
 
     const introAge = (performance.now() - this.levelStartTime) / 1000;
 
@@ -249,12 +322,16 @@ export class Game {
       const body = this.obstacleBodies[i];
       const hitTime = body ? this.obstacleHitTimes.get(body.id) : undefined;
       const hitAge = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const bx = body ? body.position.x : obs.x * this.width;
+      const by = body ? body.position.y : obs.y * this.height;
+      const angle = body ? body.angle : 0;
       this.renderer.drawDrum(
-        obs.x * this.width,
-        obs.y * this.height,
+        bx,
+        by,
         obs.w * this.width,
         obs.h * this.height,
         hitAge,
+        angle,
       );
     }
 
@@ -263,11 +340,40 @@ export class Game {
       const body = this.bumperBodies[i];
       const hitTime = body ? this.bumperHitTimes.get(body.id) : undefined;
       const hitAge = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const bumperR = body?.circleRadius ?? bp.r * this.width;
       this.renderer.drawBumper(
-        bp.x * this.width,
-        bp.y * this.height,
-        bp.r * this.width,
+        body ? body.position.x : bp.x * this.width,
+        body ? body.position.y : bp.y * this.height,
+        bumperR,
         hitAge,
+      );
+    }
+
+    for (let i = 0; i < this.generatedTriangles.length; i++) {
+      const tri = this.generatedTriangles[i]!;
+      const body = this.triangleBodies[i];
+      const hitTime = body ? this.triangleHitTimes.get(body.id) : undefined;
+      const hitAge2 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      this.renderer.drawTriangle(
+        body ? body.position.x : tri.x * this.width,
+        body ? body.position.y : tri.y * this.height,
+        tri.size * this.width,
+        hitAge2,
+      );
+    }
+
+    for (let i = 0; i < this.generatedCrosses.length; i++) {
+      const cr = this.generatedCrosses[i]!;
+      const body = this.crossBodies[i];
+      const hitTime = body ? this.crossHitTimes.get(body.id) : undefined;
+      const hitAge3 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const angle = body ? body.angle : 0;
+      this.renderer.drawCross(
+        cr.x * this.width,
+        cr.y * this.height,
+        cr.size * this.width,
+        angle,
+        hitAge3,
       );
     }
 
@@ -314,7 +420,7 @@ export class Game {
 
     // Draw white balls
     for (const wb of this.whiteBalls) {
-      this.renderer.drawMarble(wb.position.x, wb.position.y, MARBLE_RADIUS, 7);
+      this.renderer.drawRainbowMarble(wb.position.x, wb.position.y, MARBLE_RADIUS);
     }
 
     // Draw goal effects
@@ -341,6 +447,7 @@ export class Game {
 
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       this.renderer.drawResetButton(this.height);
+      this.renderer.drawBackButton(this.height);
     }
 
     // カーソルを制御点付近で grab に変更します
@@ -384,54 +491,51 @@ export class Game {
       const cx = this.width / 2;
       const cy = this.height / 2;
 
-      // 速度 -/+ ボタン（タイトル画面の設定 UI）
-      const speedY = cy + 175;
-      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - speedY) < 22) {
-        if (this.speed > MIN_SPEED + 0.01) {
-          this.speed = Math.round((this.speed - SPEED_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
-      }
-      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - speedY) < 22) {
-        if (this.speed < MAX_SPEED - 0.01) {
-          this.speed = Math.round((this.speed + SPEED_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
-      }
+      // 障害物カードのタップ判定
+      const cardW = 80;
+      const cardH = 110;
+      const gap = 8;
+      const cardCount = 4;
+      const totalW = cardW * cardCount + gap * (cardCount - 1);
+      const startCardX = cx - totalW / 2 + cardW / 2;
+      const cardY = cy + 30;
+      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
 
-      // 弾性 -/+ ボタン
-      const restY = cy + 235;
-      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - restY) < 22) {
-        if (this.restitution > MIN_RESTITUTION + 0.01) {
-          this.restitution = Math.round((this.restitution - RESTITUTION_STEP) * 10) / 10;
-          this.saveSettings();
+      for (let i = 0; i < cardCount; i++) {
+        const cardX = startCardX + i * (cardW + gap);
+        if (
+          Math.abs(x - cardX) < cardW / 2 &&
+          Math.abs(y - cardY) < cardH / 2
+        ) {
           this.sound.tap();
+          const type = types[i]!;
+          if (this.selectedObstacles.has(type)) {
+            this.selectedObstacles.delete(type);
+          } else {
+            this.selectedObstacles.add(type);
+          }
+          return;
         }
-        return;
-      }
-      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - restY) < 22) {
-        if (this.restitution < MAX_RESTITUTION - 0.01) {
-          this.restitution = Math.round((this.restitution + RESTITUTION_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
       }
 
       // あそぶボタン
-      this.sound.tap();
-      this.state = "playing";
-      this.levelManager.loadLevel(1);
-      this.shelves = [];
-      this.timeRemaining = TIME_LIMIT;
-      this.timerStarted = false;
-      this.levelStartTime = performance.now();
-      this.generateObstacles();
-      this.setupObstaclesAndWhiteBalls();
+      const btnY = cardY + cardH / 2 + 60;
+      if (
+        this.selectedObstacles.size > 0 &&
+        Math.abs(x - cx) < 100 &&
+        Math.abs(y - btnY) < 27
+      ) {
+        this.sound.tap();
+        this.state = "playing";
+        this.levelManager.loadLevel(1);
+        this.shelves = [];
+        this.timeRemaining = TIME_LIMIT;
+        this.timerStarted = false;
+        this.levelStartTime = performance.now();
+        this.generateObstacles();
+        this.setupObstaclesAndWhiteBalls();
+        return;
+      }
       return;
     }
 
@@ -440,21 +544,29 @@ export class Game {
       const centerY = this.height / 2;
 
       if (this.state === "clear") {
+        // もういちどボタン
         if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
           this.sound.tap();
-          this.levelManager.nextLevel();
           this.resetLevel();
           return;
         }
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 185)) < 30) {
+        // タイトルへボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 190)) < 30) {
           this.sound.tap();
-          this.resetLevel();
+          this.goToTitle();
           return;
         }
       } else {
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 60)) < 30) {
+        // リトライボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 70)) < 30) {
           this.sound.tap();
           this.resetLevel();
+          return;
+        }
+        // タイトルへボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 135)) < 30) {
+          this.sound.tap();
+          this.goToTitle();
           return;
         }
       }
@@ -481,6 +593,13 @@ export class Game {
       if (Math.abs(x - 28) < 22 && Math.abs(y - (this.height - 28)) < 22) {
         this.sound.tap();
         this.resetLevel();
+        return;
+      }
+
+      // もどるボタン（リセットの右隣）
+      if (Math.abs(x - 76) < 22 && Math.abs(y - (this.height - 28)) < 22) {
+        this.sound.tap();
+        this.goToTitle();
         return;
       }
     }
@@ -556,6 +675,13 @@ export class Game {
       if (Math.abs(x - 28) < 22 && Math.abs(y - (this.height - 28)) < 22) {
         this.sound.tap();
         this.resetLevel();
+        return;
+      }
+
+      // もどるボタン（リセットの右隣）
+      if (Math.abs(x - 76) < 22 && Math.abs(y - (this.height - 28)) < 22) {
+        this.sound.tap();
+        this.goToTitle();
         return;
       }
     }
@@ -735,7 +861,7 @@ export class Game {
 
   /** 端点がタップされたかを判定し、ドラッグを開始します */
   private handleDragStart(x: number, y: number): boolean {
-    if (this.state !== "playing" && this.state !== "drawing") return false;
+    if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return false;
 
     for (let i = 0; i < this.shelves.length; i++) {
       const shelf = this.shelves[i]!;
@@ -877,10 +1003,17 @@ export class Game {
 
     // Obstacles
     this.obstacleBodies = [];
+    this.obstaclePivots = [];
+    this.obstacleBasePositions = [];
+    this.obstaclePhases = [];
+    this.obstacleSpeeds = [];
+    const pivotChoices: ("center" | "left" | "right")[] = ["center", "left", "right"];
     for (const obs of this.generatedObstacles) {
+      const cx = obs.x * this.width;
+      const cy = obs.y * this.height;
       const obsBody = Matter.Bodies.rectangle(
-        obs.x * this.width,
-        obs.y * this.height,
+        cx,
+        cy,
         obs.w * this.width,
         obs.h * this.height,
         {
@@ -894,10 +1027,17 @@ export class Game {
       );
       Matter.Composite.add(this.engine.world, obsBody);
       this.obstacleBodies.push(obsBody);
+      const pivot = pivotChoices[Math.floor(this.getRandom() * 3)]!;
+      this.obstaclePivots.push(pivot);
+      this.obstacleBasePositions.push({ x: cx, y: cy });
+      this.obstaclePhases.push(this.getRandom() * Math.PI * 2);
+      this.obstacleSpeeds.push(0.8 + this.getRandom() * 0.4);
     }
 
     // Bumpers (circular obstacles with high restitution)
     this.bumperBodies = [];
+    this.bumperPhases = [];
+    this.bumperBaseSizes = [];
     for (const bp of this.generatedBumpers) {
       const bpBody = Matter.Bodies.circle(
         bp.x * this.width,
@@ -913,6 +1053,60 @@ export class Game {
       );
       Matter.Composite.add(this.engine.world, bpBody);
       this.bumperBodies.push(bpBody);
+      this.bumperPhases.push(this.getRandom() * Math.PI * 2);
+      this.bumperBaseSizes.push(bp.r * this.width);
+    }
+
+    // Triangles
+    this.triangleBodies = [];
+    this.trianglePhases = [];
+    this.triangleBasePositions = [];
+    for (const tri of this.generatedTriangles) {
+      const cx = tri.x * this.width;
+      const cy = tri.y * this.height;
+      const triBody = Matter.Bodies.polygon(
+        cx,
+        cy,
+        3,
+        tri.size * this.width,
+        {
+          isStatic: true,
+          restitution: 0.8,
+          friction: 0.2,
+          label: "triangle",
+          render: { visible: false },
+        },
+      );
+      Matter.Composite.add(this.engine.world, triBody);
+      this.triangleBodies.push(triBody);
+      this.trianglePhases.push(this.getRandom() * Math.PI * 2);
+      this.triangleBasePositions.push({ x: cx, y: cy });
+    }
+
+    // Crosses (rotating + shape)
+    this.crossBodies = [];
+    for (const cr of this.generatedCrosses) {
+      const cx = cr.x * this.width;
+      const cy = cr.y * this.height;
+      const armLen = cr.size * this.width * 2;
+      const armW = cr.size * this.width * 0.4;
+
+      const horizontal = Matter.Bodies.rectangle(cx, cy, armLen, armW, {
+        render: { visible: false },
+      });
+      const vertical = Matter.Bodies.rectangle(cx, cy, armW, armLen, {
+        render: { visible: false },
+      });
+      const crossBody = Matter.Body.create({
+        parts: [horizontal, vertical],
+        isStatic: true,
+        restitution: 0.6,
+        friction: 0.1,
+        label: "cross",
+        render: { visible: false },
+      });
+      Matter.Composite.add(this.engine.world, crossBody);
+      this.crossBodies.push(crossBody);
     }
 
     // White balls (adjacent to obstacles)
@@ -1098,6 +1292,12 @@ export class Game {
     }
   }
 
+  private goToTitle(): void {
+    this.cleanupPhysics();
+    this.state = "title";
+    this.selectedObstacles.clear();
+  }
+
   private resetLevel(): void {
     this.cleanupPhysics();
     this.shelves = [];
@@ -1119,9 +1319,24 @@ export class Game {
     this.whiteBalls = [];
     this.whiteballHitBy.clear();
     this.obstacleBodies = [];
+    this.obstaclePivots = [];
+    this.obstacleBasePositions = [];
+    this.obstaclePhases = [];
+    this.obstacleSpeeds = [];
     this.obstacleHitTimes.clear();
     this.bumperBodies = [];
+    this.bumperPhases = [];
+    this.bumperBaseSizes = [];
     this.bumperHitTimes.clear();
+    this.generatedTriangles = [];
+    this.triangleBodies = [];
+    this.trianglePhases = [];
+    this.triangleBasePositions = [];
+    this.triangleHitTimes.clear();
+    this.generatedCrosses = [];
+    this.crossBodies = [];
+    this.crossHitTimes.clear();
+    this.crossDirections = [];
     this.generateObstacles();
     this.setupObstaclesAndWhiteBalls();
   }
@@ -1173,51 +1388,52 @@ export class Game {
       this.seededRandom = null;
     }
 
-    this.generatedObstacles = [...level.obstacles];
+    this.generatedObstacles = [];
+    this.generatedBumpers = [];
+    this.generatedTriangles = [];
 
     const startX = level.start.x;
     const startY = level.start.y;
     const goalX = level.goal.x;
     const goalY = level.goal.y;
 
-    const count = level.randomObstacles ?? 0;
-    for (let i = 0; i < count; i++) {
-      const minY = Math.min(startY, goalY) + 0.1;
-      const maxY = Math.max(startY, goalY) - 0.1;
-      const x = 0.15 + this.getRandom() * 0.7;
-      const y = minY + this.getRandom() * (maxY - minY);
-      const w = 0.08 + this.getRandom() * 0.15;
-      const h = 0.03 + this.getRandom() * 0.04;
+    const totalCount = 3 + Math.floor(this.getRandom() * 3); // 3-5 個
+    const selected = [...this.selectedObstacles];
+    if (selected.length === 0) return;
 
-      // スタートとゴールから離れた位置にのみ配置します
-      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
-      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
-      if (dStart < 0.15 || dGoal < 0.15) {
-        i--;
-        continue;
+    // 各タイプに均等に配分します
+    const perType = Math.max(1, Math.ceil(totalCount / selected.length));
+
+    for (const type of selected) {
+      for (let i = 0; i < perType; i++) {
+        const minY = Math.min(startY, goalY) + 0.1;
+        const maxY = Math.max(startY, goalY) - 0.1;
+        const ox = 0.15 + this.getRandom() * 0.7;
+        const oy = minY + this.getRandom() * (maxY - minY);
+
+        const dStart = Math.sqrt((ox - startX) ** 2 + (oy - startY) ** 2);
+        const dGoal = Math.sqrt((ox - goalX) ** 2 + (oy - goalY) ** 2);
+        if (dStart < 0.15 || dGoal < 0.15) {
+          i--;
+          continue;
+        }
+
+        if (type === "rect") {
+          const w = 0.08 + this.getRandom() * 0.15;
+          const h = 0.03 + this.getRandom() * 0.04;
+          this.generatedObstacles.push({ x: ox, y: oy, w, h });
+        } else if (type === "circle") {
+          const r = 0.0675 + this.getRandom() * 0.045;
+          this.generatedBumpers.push({ x: ox, y: oy, r });
+        } else if (type === "triangle") {
+          const size = 0.0675 + this.getRandom() * 0.045;
+          this.generatedTriangles.push({ x: ox, y: oy, size });
+        } else if (type === "cross") {
+          const size = 0.0675 + this.getRandom() * 0.045;
+          this.generatedCrosses.push({ x: ox, y: oy, size });
+          this.crossDirections.push(this.getRandom() < 0.5 ? 1 : -1);
+        }
       }
-
-      this.generatedObstacles.push({ x, y, w, h });
-    }
-
-    // バンパー（円形障害物）の生成
-    this.generatedBumpers = [...level.bumpers];
-    const bumperCount = level.randomBumpers ?? 0;
-    for (let i = 0; i < bumperCount; i++) {
-      const minY = Math.min(startY, goalY) + 0.1;
-      const maxY = Math.max(startY, goalY) - 0.1;
-      const x = 0.15 + this.getRandom() * 0.7;
-      const y = minY + this.getRandom() * (maxY - minY);
-      const r = 0.03 + this.getRandom() * 0.02;
-
-      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
-      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
-      if (dStart < 0.15 || dGoal < 0.15) {
-        i--;
-        continue;
-      }
-
-      this.generatedBumpers.push({ x, y, r });
     }
   }
 
@@ -1245,7 +1461,8 @@ export class Game {
           this.obstacleHitTimes.set(hitObstacle.id, performance.now());
           this.sound.bounce();
           this.nudgeNearbyWhiteBalls(hitObstacle);
-          this.damageMarble(hitMarble);
+          // damageMarble は一旦無効にします（パーティクルのソースは残します）
+          if (false as boolean) this.damageMarble(hitMarble);
         }
 
         // バンパーの衝突フィードバック
@@ -1262,45 +1479,84 @@ export class Game {
           this.bumperHitTimes.set(hitBumper.id, performance.now());
           this.sound.bounce();
         }
+
+        // トライアングルの衝突フィードバック
+        let hitTriangle: Matter.Body | null = null;
+        let triMarble: Matter.Body | null = null;
+        if (bodyA.label === "triangle" && bodyB.label === "marble") {
+          hitTriangle = bodyA; triMarble = bodyB;
+        } else if (bodyB.label === "triangle" && bodyA.label === "marble") {
+          hitTriangle = bodyB; triMarble = bodyA;
+        }
+        if (hitTriangle && triMarble) {
+          this.triangleHitTimes.set(hitTriangle.id, performance.now());
+          this.sound.bounce();
+        }
+
+        // クロスの衝突フィードバック
+        let hitCross: Matter.Body | null = null;
+        if (bodyA.label === "cross" && bodyB.label === "marble") {
+          hitCross = bodyA;
+        } else if (bodyB.label === "cross" && bodyA.label === "marble") {
+          hitCross = bodyB;
+        }
+        if (hitCross) {
+          this.crossHitTimes.set(hitCross.id, performance.now());
+          this.sound.bounce();
+        }
       }
     });
   }
 
   private setupWhiteBalls(): void {
-    const level = this.levelManager.current();
-    if (!level) return;
+    if (this.selectedObstacles.size === 0) return;
 
-    const count = level.whiteballCount ?? 0;
-    if (count === 0 || this.generatedObstacles.length === 0) return;
+    // ランダムに1つの障害物タイプを選んで白いボールを配置します
+    const types = [...this.selectedObstacles];
+    const type = types[Math.floor(this.getRandom() * types.length)]!;
 
-    // 障害物からランダムに選んで白いボールを配置します
-    const indices = [...Array(this.generatedObstacles.length).keys()];
-    for (let i = indices.length - 1; i > 0; i--) {
-      const j = Math.floor(this.getRandom() * (i + 1));
-      [indices[i], indices[j]] = [indices[j]!, indices[i]!];
+    let whiteX = 0;
+    let whiteY = 0;
+    let placed = false;
+
+    if (type === "rect" && this.generatedObstacles.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedObstacles.length);
+      const obs = this.generatedObstacles[idx]!;
+      whiteX = obs.x * this.width;
+      whiteY = (obs.y - obs.h / 2) * this.height - MARBLE_RADIUS - 1;
+      placed = true;
+    } else if (type === "circle" && this.generatedBumpers.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedBumpers.length);
+      const bp = this.generatedBumpers[idx]!;
+      whiteX = bp.x * this.width;
+      whiteY = (bp.y * this.height) - (bp.r * this.width) - MARBLE_RADIUS - 1;
+      placed = true;
+    } else if (type === "triangle" && this.generatedTriangles.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedTriangles.length);
+      const tri = this.generatedTriangles[idx]!;
+      whiteX = tri.x * this.width;
+      whiteY = (tri.y * this.height) - (tri.size * this.width * 0.7) - MARBLE_RADIUS - 1;
+      placed = true;
+    } else if (type === "cross" && this.generatedCrosses.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedCrosses.length);
+      const cr = this.generatedCrosses[idx]!;
+      const armLen = cr.size * this.width;
+      whiteX = cr.x * this.width;
+      whiteY = (cr.y * this.height) - armLen - MARBLE_RADIUS - 1;
+      placed = true;
     }
 
-    const placed = Math.min(count, indices.length);
-    for (let i = 0; i < placed; i++) {
-      const obs = this.generatedObstacles[indices[i]!]!;
-      const obsW = obs.w * this.width;
+    if (!placed) return;
 
-      // 障害物の幅がボール直径より小さい場合はスキップします
-      if (obsW < MARBLE_RADIUS * 2) continue;
-
-      const whiteX = obs.x * this.width;
-      const whiteY = (obs.y - obs.h / 2) * this.height - MARBLE_RADIUS - 1;
-
-      const wb = Matter.Bodies.circle(whiteX, whiteY, MARBLE_RADIUS, {
-        restitution: 0.5,
-        friction: 0.01,
-        density: 0.002,
-        label: "whiteball",
-        render: { visible: false },
-      });
-      Matter.Composite.add(this.engine.world, wb);
-      this.whiteBalls.push(wb);
-    }
+    const wb = Matter.Bodies.circle(whiteX, whiteY, MARBLE_RADIUS, {
+      restitution: 0.5,
+      friction: 0.01,
+      density: 0.002,
+      label: "whiteball",
+      render: { visible: false },
+    });
+    Matter.Composite.add(this.engine.world, wb);
+    this.whiteBalls.push(wb);
   }
 
   private damageMarble(marble: Matter.Body): void {
@@ -1384,17 +1640,6 @@ export class Game {
     }
   }
 
-  private saveSettings(): void {
-    try {
-      localStorage.setItem(
-        "b-dama-settings",
-        JSON.stringify({ speed: this.speed, restitution: this.restitution }),
-      );
-    } catch {
-      // localStorage が使えない場合は無視します
-    }
-  }
-
   private cleanupPhysics(): void {
     Matter.Composite.clear(this.engine.world, false);
     this.marbles = [];
@@ -1403,8 +1648,20 @@ export class Game {
     this.whiteBalls = [];
     this.whiteballHitBy.clear();
     this.obstacleBodies = [];
+    this.obstaclePivots = [];
+    this.obstacleBasePositions = [];
+    this.obstaclePhases = [];
+    this.obstacleSpeeds = [];
     this.obstacleHitTimes.clear();
     this.bumperBodies = [];
+    this.bumperPhases = [];
+    this.bumperBaseSizes = [];
     this.bumperHitTimes.clear();
+    this.triangleBodies = [];
+    this.trianglePhases = [];
+    this.triangleBasePositions = [];
+    this.triangleHitTimes.clear();
+    this.crossBodies = [];
+    this.crossHitTimes.clear();
   }
 }
