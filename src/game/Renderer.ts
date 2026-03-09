@@ -54,7 +54,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  drawTitleScreen(w: number, h: number, selectedObstacle: ObstacleType | null): void {
+  drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>): void {
     const ctx = this.ctx;
     const cx = w / 2;
     const cy = h / 2;
@@ -83,24 +83,38 @@ export class Renderer {
     ctx.globalAlpha = 1;
 
     // Obstacle cards
-    const cardW = 90;
+    const cardW = 80;
     const cardH = 110;
-    const gap = 12;
-    const totalW = cardW * 3 + gap * 2;
+    const gap = 8;
+    const cardCount = 4;
+    const totalW = cardW * cardCount + gap * (cardCount - 1);
     const startX = cx - totalW / 2 + cardW / 2;
     const cardY = cy + 30;
-    const types: ObstacleType[] = ["rect", "circle", "triangle"];
-    const labels = ["しかく", "まる", "さんかく"];
+    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
+    const labels = ["しかく", "まる", "さんかく", "くるくる"];
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < cardCount; i++) {
       const cardX = startX + i * (cardW + gap);
-      const isSelected = selectedObstacle === types[i];
+      const isSelected = selectedObstacles.has(types[i]!);
       this.drawObstacleCard(cardX, cardY, cardW, cardH, types[i]!, labels[i]!, isSelected);
     }
 
+    // Feedback message
+    const msgY = cardY + cardH / 2 + 22;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 13px 'Hachi Maru Pop', cursive";
+    if (selectedObstacles.size === 0) {
+      ctx.fillStyle = "#3a2020";
+      ctx.fillText("いくつでも えらべるよ！", cx, msgY);
+    } else {
+      ctx.fillStyle = "#c07000";
+      ctx.fillText(`${selectedObstacles.size}こ えらんだ！`, cx, msgY);
+    }
+
     // Play button
-    const btnY = cardY + cardH / 2 + 50;
-    if (selectedObstacle !== null) {
+    const btnY = cardY + cardH / 2 + 60;
+    if (selectedObstacles.size > 0) {
       this.drawButton(cx, btnY, 200, 54, "あそぶ", COLORS.red, COLORS.white, "play");
     } else {
       this.drawButton(cx, btnY, 200, 54, "あそぶ", "#E0E0E0", "#AAAAAA");
@@ -230,6 +244,68 @@ export class Renderer {
     ctx.globalAlpha = prevAlpha;
   }
 
+  drawRainbowMarble(x: number, y: number, r: number): void {
+    const ctx = this.ctx;
+    const t = this.t;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(t * 3);
+
+    // レインボーグラデーションの円を描画します
+    const rainbowColors = [
+      "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63",
+    ];
+
+    // Conic gradient をセグメントで近似します
+    const segments = rainbowColors.length;
+    for (let i = 0; i < segments; i++) {
+      const startAngle = (Math.PI * 2 * i) / segments;
+      const endAngle = (Math.PI * 2 * (i + 1)) / segments;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fillStyle = rainbowColors[i]!;
+      ctx.fill();
+    }
+
+    // 中央に白いグラデーションを重ねてガラス質感を出します
+    const innerGrad = ctx.createRadialGradient(-r * 0.1, -r * 0.15, 0, 0, 0, r);
+    innerGrad.addColorStop(0, "rgba(255,255,255,0.7)");
+    innerGrad.addColorStop(0.4, "rgba(255,255,255,0.3)");
+    innerGrad.addColorStop(0.7, "rgba(255,255,255,0.05)");
+    innerGrad.addColorStop(1, "rgba(0,0,0,0.1)");
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = innerGrad;
+    ctx.fill();
+
+    ctx.restore();
+
+    // ハイライト（回転しない固定位置）
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.3, r * 0.2, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fill();
+
+    // キラキラエフェクト
+    const sparkleCount = 4;
+    for (let i = 0; i < sparkleCount; i++) {
+      const angle = t * 2 + (Math.PI * 2 * i) / sparkleCount;
+      const dist = r + 4 + Math.sin(t * 5 + i * 1.5) * 3;
+      const sx = x + Math.cos(angle) * dist;
+      const sy = y + Math.sin(angle) * dist;
+      const sparkleSize = 2 + Math.sin(t * 6 + i) * 1;
+      ctx.globalAlpha = 0.5 + Math.sin(t * 6 + i * 2) * 0.3;
+      ctx.fillStyle = rainbowColors[i % rainbowColors.length]!;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sparkleSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   drawGoal(x: number, y: number, goalsScored = 0, introAge = 999): void {
     const ctx = this.ctx;
     const pulse = 1 + Math.sin(this.t * 3) * 0.08;
@@ -260,45 +336,110 @@ export class Renderer {
     ctx.fillStyle = `rgba(243,156,18,${glowAlpha})`;
     ctx.fill();
 
-    // Basket shape - trapezoid cup
-    const bw = 36;
-    const bh = 28;
-    const topW = bw;
-    const botW = bw * 0.7;
+    // Piano basket
+    const pw = 40; // half width
+    const ph = 30; // height
+    const topY = y - ph * 0.3;
+    const botY = y + ph * 0.5;
 
+    // Piano body (trapezoid)
     ctx.beginPath();
-    ctx.moveTo(x - topW, y - bh * 0.3);
-    ctx.lineTo(x + topW, y - bh * 0.3);
-    ctx.lineTo(x + botW, y + bh * 0.5);
-    ctx.lineTo(x - botW, y + bh * 0.5);
+    ctx.moveTo(x - pw, topY);
+    ctx.lineTo(x + pw, topY);
+    ctx.lineTo(x + pw * 0.8, botY);
+    ctx.lineTo(x - pw * 0.8, botY);
     ctx.closePath();
-
-    const basketGrad = ctx.createLinearGradient(0, y - bh * 0.3, 0, y + bh * 0.5);
-    basketGrad.addColorStop(0, COLORS.gold);
-    basketGrad.addColorStop(1, "#E67E22");
-    ctx.fillStyle = basketGrad;
+    const bodyGrad = ctx.createLinearGradient(0, topY, 0, botY);
+    bodyGrad.addColorStop(0, "#2C2C2C");
+    bodyGrad.addColorStop(0.5, "#1A1A1A");
+    bodyGrad.addColorStop(1, "#0D0D0D");
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
-    ctx.strokeStyle = "#D4740E";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#444";
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Horizontal lines on basket
-    ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = 1;
-    for (let i = 1; i <= 2; i++) {
-      const ly = y - bh * 0.3 + (bh * 0.8 * i) / 3;
-      const ratio = i / 3;
-      const lw = topW + (botW - topW) * ratio;
+    // Piano top highlight
+    ctx.beginPath();
+    ctx.moveTo(x - pw + 2, topY + 1);
+    ctx.lineTo(x + pw - 2, topY + 1);
+    ctx.lineTo(x + pw - 4, topY + 4);
+    ctx.lineTo(x - pw + 4, topY + 4);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fill();
+
+    // White keys
+    const keysY = topY + 6;
+    const keysH = (botY - topY) * 0.65;
+    const keyCount = 8;
+    const keysW = pw * 1.6;
+    const keyW = keysW / keyCount;
+    const keysStartX = x - keysW / 2;
+
+    for (let i = 0; i < keyCount; i++) {
+      const kx = keysStartX + i * keyW;
       ctx.beginPath();
-      ctx.moveTo(x - lw, ly);
-      ctx.lineTo(x + lw, ly);
+      ctx.roundRect(kx + 0.5, keysY, keyW - 1, keysH, [0, 0, 2, 2]);
+      ctx.fillStyle = "#F5F5F0";
+      ctx.fill();
+      ctx.strokeStyle = "#CCC";
+      ctx.lineWidth = 0.5;
       ctx.stroke();
+    }
+
+    // Black keys
+    const blackKeyPattern = [1, 1, 0, 1, 1, 1, 0]; // pattern of black keys
+    const blackKeyH = keysH * 0.55;
+    const blackKeyW = keyW * 0.6;
+    for (let i = 0; i < keyCount - 1; i++) {
+      if (!blackKeyPattern[i % blackKeyPattern.length]) continue;
+      const bkx = keysStartX + (i + 1) * keyW - blackKeyW / 2;
+      ctx.beginPath();
+      ctx.roundRect(bkx, keysY, blackKeyW, blackKeyH, [0, 0, 2, 2]);
+      const bkGrad = ctx.createLinearGradient(0, keysY, 0, keysY + blackKeyH);
+      bkGrad.addColorStop(0, "#333");
+      bkGrad.addColorStop(0.8, "#1A1A1A");
+      bkGrad.addColorStop(1, "#0A0A0A");
+      ctx.fillStyle = bkGrad;
+      ctx.fill();
+    }
+
+    // Piano legs
+    ctx.fillStyle = "#1A1A1A";
+    ctx.fillRect(x - pw * 0.7, botY, 3, 6);
+    ctx.fillRect(x + pw * 0.7 - 3, botY, 3, 6);
+
+    // Subtle gold trim at top
+    ctx.beginPath();
+    ctx.moveTo(x - pw, topY);
+    ctx.lineTo(x + pw, topY);
+    ctx.strokeStyle = COLORS.gold;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Note animation (bouncing music notes)
+    const noteColors = [COLORS.gold, COLORS.red, COLORS.blue];
+    for (let i = 0; i < 3; i++) {
+      const noteAge = (this.t * 0.8 + i * 1.2) % 2.5;
+      if (noteAge > 1.5) continue;
+      const noteProgress = noteAge / 1.5;
+      const noteX = x + (i - 1) * 18;
+      const noteY = topY - 8 - noteProgress * 20;
+      const noteAlpha = 1 - noteProgress;
+      ctx.globalAlpha = noteAlpha * 0.6;
+      ctx.fillStyle = noteColors[i % noteColors.length]!;
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("\u266A", noteX, noteY);
     }
     ctx.globalAlpha = 1;
 
-    // Down arrow above basket
-    const arrowY = y - bh * 0.3 - 14;
+    // Down arrow above piano
+    const arrowY = topY - 16;
     const arrowPulse = Math.sin(this.t * 4) * 3;
     ctx.fillStyle = COLORS.gold;
     ctx.globalAlpha = 0.7;
@@ -316,17 +457,17 @@ export class Renderer {
     ctx.fillStyle = COLORS.dark;
     ctx.globalAlpha = 0.5;
     ctx.font = "10px 'Hachi Maru Pop', cursive";
-    ctx.fillText("ゴール", x, y + bh * 0.5 + 6);
+    ctx.fillText("ゴール", x, botY + 10);
     ctx.globalAlpha = 1;
 
     // Score badge
     if (goalsScored > 0) {
-      const badgeX = x + topW + 6;
-      const badgeY = y - bh * 0.3 - 6;
+      const badgeX = x + pw + 6;
+      const badgeY2 = topY - 6;
       const badgeR = 14;
 
       ctx.beginPath();
-      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.arc(badgeX, badgeY2, badgeR, 0, Math.PI * 2);
       ctx.fillStyle = COLORS.red;
       ctx.fill();
       ctx.strokeStyle = COLORS.white;
@@ -337,7 +478,7 @@ export class Renderer {
       ctx.textBaseline = "middle";
       ctx.fillStyle = COLORS.white;
       ctx.font = "bold 12px 'Hachi Maru Pop', cursive";
-      ctx.fillText(`${goalsScored}`, badgeX, badgeY);
+      ctx.fillText(`${goalsScored}`, badgeX, badgeY2);
     }
   }
 
@@ -440,7 +581,7 @@ export class Renderer {
     ctx.lineCap = "butt";
   }
 
-  drawDrum(x: number, y: number, w: number, h: number, hitAge = -1): void {
+  drawDrum(x: number, y: number, w: number, h: number, hitAge = -1, angle = 0): void {
     const ctx = this.ctx;
     const HIT_DURATION = 0.3;
     const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
@@ -455,12 +596,13 @@ export class Renderer {
       shakeY = Math.cos(hitAge * 80) * 2 * decay;
     }
 
-    const dx = x + shakeX;
-    const dy = y + shakeY;
+    ctx.save();
+    ctx.translate(x + shakeX, y + shakeY);
+    if (angle !== 0) ctx.rotate(angle);
 
     // Shadow
     ctx.beginPath();
-    ctx.roundRect(dx - w / 2 + 2, dy - h / 2 + 2, w, h, 8);
+    ctx.roundRect(-w / 2 + 2, -h / 2 + 2, w, h, 8);
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fill();
 
@@ -469,17 +611,19 @@ export class Renderer {
     const bottomColor = isHit ? COLORS.gold : COLORS.redDark;
 
     ctx.beginPath();
-    ctx.roundRect(dx - w / 2, dy - h / 2, w, h, 8);
-    const grad = ctx.createLinearGradient(0, dy - h / 2, 0, dy + h / 2);
+    ctx.roundRect(-w / 2, -h / 2, w, h, 8);
+    const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
     grad.addColorStop(0, topColor);
     grad.addColorStop(1, bottomColor);
     ctx.fillStyle = grad;
     ctx.fill();
 
     ctx.beginPath();
-    ctx.roundRect(dx - w / 2, dy - h / 2, w, 6, [6, 6, 0, 0]);
+    ctx.roundRect(-w / 2, -h / 2, w, 6, [6, 6, 0, 0]);
     ctx.fillStyle = isHit ? COLORS.white : COLORS.gold;
     ctx.fill();
+
+    ctx.restore();
   }
 
   drawBumper(x: number, y: number, r: number, hitAge = -1): void {
@@ -606,6 +750,81 @@ export class Renderer {
     ctx.closePath();
     ctx.fillStyle = "rgba(255,255,255,0.15)";
     ctx.fill();
+  }
+
+  drawCross(x: number, y: number, size: number, angle: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    let scale = 1;
+    if (isHit) {
+      const progress = hitAge / HIT_DURATION;
+      scale = 1 + Math.sin(progress * Math.PI) * 0.15;
+    }
+
+    const armLen = size * scale * 2;
+    const armW = size * scale * 0.4;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Shadow
+    ctx.save();
+    ctx.translate(2, 2);
+    ctx.beginPath();
+    ctx.roundRect(-armLen / 2, -armW / 2, armLen, armW, 3);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-armW / 2, -armLen / 2, armW, armLen, 3);
+    ctx.fill();
+    ctx.restore();
+
+    // Body
+    const baseColor = isHit ? COLORS.goldLight : "#F39C12";
+    const darkColor = isHit ? COLORS.gold : "#E67E22";
+    const grad = ctx.createLinearGradient(-armLen / 2, 0, armLen / 2, 0);
+    grad.addColorStop(0, darkColor);
+    grad.addColorStop(0.5, baseColor);
+    grad.addColorStop(1, darkColor);
+
+    // Horizontal arm
+    ctx.beginPath();
+    ctx.roundRect(-armLen / 2, -armW / 2, armLen, armW, 3);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#D4740E";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Vertical arm
+    const vGrad = ctx.createLinearGradient(0, -armLen / 2, 0, armLen / 2);
+    vGrad.addColorStop(0, darkColor);
+    vGrad.addColorStop(0.5, baseColor);
+    vGrad.addColorStop(1, darkColor);
+    ctx.beginPath();
+    ctx.roundRect(-armW / 2, -armLen / 2, armW, armLen, 3);
+    ctx.fillStyle = vGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#D4740E";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Center circle
+    ctx.beginPath();
+    ctx.arc(0, 0, armW * 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "#D4740E";
+    ctx.fill();
+
+    // Highlight
+    ctx.beginPath();
+    ctx.arc(-armW * 0.15, -armW * 0.15, armW * 0.25, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.fill();
+
+    ctx.restore();
   }
 
   drawTrampoline(x: number, y: number): void {
@@ -914,6 +1133,10 @@ export class Renderer {
     this.drawButton(28, h - 28, 40, 40, "", COLORS.white, COLORS.dark, "reset");
   }
 
+  drawBackButton(h: number): void {
+    this.drawButton(76, h - 28, 40, 40, "", COLORS.white, COLORS.dark, "back");
+  }
+
 
   private isPressed(x: number, y: number, w: number, h: number): boolean {
     if (!this.pressedPoint) return false;
@@ -1061,6 +1284,17 @@ export class Renderer {
         ctx.closePath();
         ctx.fillStyle = color;
         ctx.fill();
+        break;
+      }
+      case "back": {
+        // Left arrow
+        ctx.beginPath();
+        ctx.moveTo(x + s * 0.25, y - s * 0.3);
+        ctx.lineTo(x - s * 0.2, y);
+        ctx.lineTo(x + s * 0.25, y + s * 0.3);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
         break;
       }
       case "roll": {
@@ -1257,19 +1491,26 @@ export class Renderer {
     const previewY = y - 10;
     if (type === "rect") {
       const rw = 48, rh = 18;
+      const swayAngle = Math.sin(this.t * 0.8) * (15 * Math.PI / 180);
+      ctx.save();
+      ctx.translate(x, previewY);
+      ctx.rotate(swayAngle);
       ctx.beginPath();
-      ctx.roundRect(x - rw / 2, previewY - rh / 2, rw, rh, 6);
-      const grad = ctx.createLinearGradient(0, previewY - rh / 2, 0, previewY + rh / 2);
+      ctx.roundRect(-rw / 2, -rh / 2, rw, rh, 6);
+      const grad = ctx.createLinearGradient(0, -rh / 2, 0, rh / 2);
       grad.addColorStop(0, COLORS.red);
       grad.addColorStop(1, COLORS.redDark);
       ctx.fillStyle = grad;
       ctx.fill();
       ctx.beginPath();
-      ctx.roundRect(x - rw / 2, previewY - rh / 2, rw, 4, [4, 4, 0, 0]);
+      ctx.roundRect(-rw / 2, -rh / 2, rw, 4, [4, 4, 0, 0]);
       ctx.fillStyle = COLORS.gold;
       ctx.fill();
+      ctx.restore();
     } else if (type === "circle") {
-      const cr = 22;
+      const baseR = 22;
+      const pulseScale = 1 + Math.sin(this.t * 1.2) * 0.2;
+      const cr = baseR * pulseScale;
       const grad = ctx.createRadialGradient(x - cr * 0.2, previewY - cr * 0.2, 0, x, previewY, cr);
       grad.addColorStop(0, "#90CAF9");
       grad.addColorStop(0.5, COLORS.blue);
@@ -1287,13 +1528,14 @@ export class Renderer {
       ctx.fill();
     } else if (type === "triangle") {
       const s = 28;
-      const grad = ctx.createLinearGradient(x, previewY - s, x, previewY + s * 0.6);
+      const bobY = previewY + Math.sin(this.t * 1.0) * 6;
+      const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.6);
       grad.addColorStop(0, COLORS.green);
       grad.addColorStop(1, "#1B8C4F");
       ctx.beginPath();
-      ctx.moveTo(x, previewY - s * 0.7);
-      ctx.lineTo(x + s, previewY + s * 0.5);
-      ctx.lineTo(x - s, previewY + s * 0.5);
+      ctx.moveTo(x, bobY - s * 0.7);
+      ctx.lineTo(x + s, bobY + s * 0.5);
+      ctx.lineTo(x - s, bobY + s * 0.5);
       ctx.closePath();
       ctx.fillStyle = grad;
       ctx.fill();
@@ -1301,12 +1543,45 @@ export class Renderer {
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, previewY - s * 0.5);
-      ctx.lineTo(x + s * 0.4, previewY + s * 0.1);
-      ctx.lineTo(x - s * 0.1, previewY + s * 0.1);
+      ctx.moveTo(x, bobY - s * 0.5);
+      ctx.lineTo(x + s * 0.4, bobY + s * 0.1);
+      ctx.lineTo(x - s * 0.1, bobY + s * 0.1);
       ctx.closePath();
       ctx.fillStyle = "rgba(255,255,255,0.15)";
       ctx.fill();
+    } else if (type === "cross") {
+      const armLen = 22;
+      const armW = 8;
+      const angle = this.t * 1.5;
+
+      ctx.save();
+      ctx.translate(x, previewY);
+      ctx.rotate(angle);
+
+      const grad = ctx.createLinearGradient(-armLen, 0, armLen, 0);
+      grad.addColorStop(0, "#E67E22");
+      grad.addColorStop(0.5, "#F39C12");
+      grad.addColorStop(1, "#E67E22");
+
+      // Horizontal arm
+      ctx.beginPath();
+      ctx.roundRect(-armLen, -armW / 2, armLen * 2, armW, 3);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Vertical arm
+      ctx.beginPath();
+      ctx.roundRect(-armW / 2, -armLen, armW, armLen * 2, 3);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Center circle
+      ctx.beginPath();
+      ctx.arc(0, 0, armW * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = "#D4740E";
+      ctx.fill();
+
+      ctx.restore();
     }
 
     // Label

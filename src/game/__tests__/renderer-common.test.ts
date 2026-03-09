@@ -106,7 +106,7 @@ describe("画面状態別テスト", () => {
   });
 
   it("drawTitleScreen がタイトルを表示します", () => {
-    renderer.drawTitleScreen(W, H, null);
+    renderer.drawTitleScreen(W, H, new Set());
     const hasTitle = ctx._fillTextCalls.some(
       (c) => c.text.includes("ビー玉") || c.text.includes("ころころ"),
     );
@@ -128,7 +128,7 @@ describe("画面状態別テスト", () => {
   });
 
   it("drawTitleScreen が障害物カードを表示します", () => {
-    renderer.drawTitleScreen(W, H, "rect");
+    renderer.drawTitleScreen(W, H, new Set(["rect"]));
     const hasCard = ctx._fillTextCalls.some((c) => c.text.includes("しかく"));
     expect(hasCard).toBe(true);
   });
