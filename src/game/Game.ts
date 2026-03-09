@@ -98,7 +98,13 @@ export class Game {
   private seed: number | null = null;
   private seededRandom: (() => number) | null = null;
   private sound = new Sound();
+  private draggingShelfIndex = -1;
+  private draggingAnchorIndex = -1;
   private levelStartTime = 0;
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressShelfIndex = -1;
+  private longPressProgress = 0;
+  private longPressStartTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -131,6 +137,9 @@ export class Game {
     this.state = "title";
     this.input.onTap((x, y, holdDuration) => this.handleTap(x, y, holdDuration));
     this.input.onDrawEnd((points) => this.handleDrawEnd(points));
+    this.input.onDragStart((x, y) => this.handleDragStart(x, y));
+    this.input.onDragMove((x, y) => this.handleDragMove(x, y));
+    this.input.onDragEnd(() => this.handleDragEnd());
     this.lastTimestamp = performance.now();
     this.loop();
   }
@@ -230,7 +239,7 @@ export class Game {
     this.renderer.drawStart(
       level.start.x * this.width,
       level.start.y * this.height,
-      introAge,
+      this.timerStarted ? introAge : -1,
     );
     this.renderer.drawGravityArrow(this.width, this.height);
 
@@ -266,8 +275,15 @@ export class Game {
       this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
     }
 
-    for (const shelf of this.shelves) {
-      this.renderer.drawShelf(shelf);
+    // 長押しプログレスを更新します
+    if (this.longPressStartTime > 0 && this.longPressTimer) {
+      this.longPressProgress = Math.min(1, (performance.now() - this.longPressStartTime) / 1000);
+    }
+
+    for (let si = 0; si < this.shelves.length; si++) {
+      const shelf = this.shelves[si]!;
+      const deleteProgress = si === this.longPressShelfIndex ? this.longPressProgress : 0;
+      this.renderer.drawShelf(shelf, deleteProgress);
     }
 
     if ((this.state === "playing" || this.state === "drawing" || this.state === "rolling") && this.input.currentPath.length > 0) {
@@ -326,6 +342,41 @@ export class Game {
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       this.renderer.drawResetButton(this.height);
     }
+
+    // カーソルを制御点付近で grab に変更します
+    this.updateCursor();
+  }
+
+  private updateCursor(): void {
+    if (this.draggingShelfIndex >= 0) {
+      this.canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    if (this.state !== "playing" && this.state !== "drawing") {
+      this.canvas.style.cursor = "default";
+      return;
+    }
+
+    const hover = this.input.hoverPoint;
+    if (!hover) {
+      this.canvas.style.cursor = "default";
+      return;
+    }
+
+    for (const shelf of this.shelves) {
+      const endpoints = [0, shelf.anchors.length - 1];
+      for (const j of endpoints) {
+        const a = shelf.anchors[j]!;
+        const dx = hover.x - a.x;
+        const dy = hover.y - a.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 24) {
+          this.canvas.style.cursor = "grab";
+          return;
+        }
+      }
+    }
+    this.canvas.style.cursor = "default";
   }
 
   private handleTap(x: number, y: number, holdDuration = 0): void {
@@ -422,25 +473,6 @@ export class Game {
         if (dist < 40) {
           this.sound.roll();
           this.addMarble();
-          return;
-        }
-      }
-
-      // 棚の×マークタップで削除します
-      for (let i = this.shelves.length - 1; i >= 0; i--) {
-        const shelf = this.shelves[i]!;
-        const last = shelf.points[shelf.points.length - 1]!;
-        const dx = x - last.x;
-        const dy = y - last.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 16) {
-          for (const body of shelf.bodies) {
-            Matter.Composite.remove(this.engine.world, body);
-          }
-          this.shelves.splice(i, 1);
-          this.sound.erase();
-          if (this.shelves.length === 0) {
-            this.state = "playing";
-          }
           return;
         }
       }
@@ -545,14 +577,17 @@ export class Game {
     const totalLen = Math.sqrt(dx * dx + dy * dy);
     if (totalLen < 20) return;
 
-    // Create shelf as segmented bodies for better collision precision
-    const bodies = this.createSegmentedShelfBodies(points);
+    // 描画パスを間引いてアンカーポイントを生成します
+    const anchors = this.sampleAnchors(points, 40);
+    const curvePoints = this.generateSplinePoints(anchors);
+
+    const bodies = this.createSegmentedShelfBodies(curvePoints);
     for (const body of bodies) {
       Matter.Composite.add(this.engine.world, body);
     }
 
     const angle = Math.atan2(dy, dx);
-    this.shelves.push({ points: [...points], bodies, angle, length: totalLen });
+    this.shelves.push({ anchors, bodies, angle, length: totalLen, curvePoints });
     this.sound.draw();
     if (this.state !== "rolling") {
       this.state = "drawing";
@@ -620,6 +655,182 @@ export class Game {
 
     result.push(points[points.length - 1]!);
     return result;
+  }
+
+  /** 描画パスを一定距離間隔で間引いてアンカーポイントを生成します */
+  private sampleAnchors(points: { x: number; y: number }[], interval: number): { x: number; y: number }[] {
+    const result: { x: number; y: number }[] = [points[0]!];
+    let accumulated = 0;
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1]!;
+      const curr = points[i]!;
+      const d = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
+      accumulated += d;
+      if (accumulated >= interval) {
+        result.push(curr);
+        accumulated = 0;
+      }
+    }
+
+    const last = points[points.length - 1]!;
+    const lastAnchor = result[result.length - 1]!;
+    if (Math.sqrt((last.x - lastAnchor.x) ** 2 + (last.y - lastAnchor.y) ** 2) > 5) {
+      result.push(last);
+    }
+
+    // 最低3点を保証します
+    if (result.length === 2) {
+      const mid = points[Math.floor(points.length / 2)]!;
+      result.splice(1, 0, mid);
+    }
+
+    return result;
+  }
+
+  /** Catmull-Rom スプラインでアンカー間を補間したポイント列を生成します */
+  private generateSplinePoints(anchors: { x: number; y: number }[]): { x: number; y: number }[] {
+    if (anchors.length < 2) return [...anchors];
+    if (anchors.length === 2) {
+      // 直線
+      const result: { x: number; y: number }[] = [];
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        result.push({
+          x: anchors[0]!.x + (anchors[1]!.x - anchors[0]!.x) * t,
+          y: anchors[0]!.y + (anchors[1]!.y - anchors[0]!.y) * t,
+        });
+      }
+      return result;
+    }
+
+    const result: { x: number; y: number }[] = [];
+    const segsPerSpan = 8;
+
+    for (let i = 0; i < anchors.length - 1; i++) {
+      const p0 = anchors[Math.max(i - 1, 0)]!;
+      const p1 = anchors[i]!;
+      const p2 = anchors[i + 1]!;
+      const p3 = anchors[Math.min(i + 2, anchors.length - 1)]!;
+
+      for (let s = 0; s < segsPerSpan; s++) {
+        const t = s / segsPerSpan;
+        const t2 = t * t;
+        const t3 = t2 * t;
+        result.push({
+          x: 0.5 * ((-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+            + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2
+            + (-p0.x + p2.x) * t
+            + 2 * p1.x),
+          y: 0.5 * ((-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+            + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2
+            + (-p0.y + p2.y) * t
+            + 2 * p1.y),
+        });
+      }
+    }
+    result.push(anchors[anchors.length - 1]!);
+    return result;
+  }
+
+  /** 端点がタップされたかを判定し、ドラッグを開始します */
+  private handleDragStart(x: number, y: number): boolean {
+    if (this.state !== "playing" && this.state !== "drawing") return false;
+
+    for (let i = 0; i < this.shelves.length; i++) {
+      const shelf = this.shelves[i]!;
+      // 端点（最初と最後）のみドラッグ可能です
+      const endpoints = [0, shelf.anchors.length - 1];
+      for (const j of endpoints) {
+        const a = shelf.anchors[j]!;
+        const dx = x - a.x;
+        const dy = y - a.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 24) {
+          this.draggingShelfIndex = i;
+          this.draggingAnchorIndex = j;
+          // 長押し削除タイマーを開始します
+          this.longPressShelfIndex = i;
+          this.longPressStartTime = performance.now();
+          this.longPressProgress = 0;
+          this.longPressTimer = setTimeout(() => {
+            this.deleteLongPressedShelf();
+          }, 1000);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** ドラッグ中にアンカーを移動し、棚を再生成します */
+  private handleDragMove(x: number, y: number): void {
+    if (this.draggingShelfIndex < 0 || this.draggingAnchorIndex < 0) return;
+    const shelf = this.shelves[this.draggingShelfIndex];
+    if (!shelf) return;
+
+    // 移動が発生したら長押し削除をキャンセルします
+    this.cancelLongPress();
+
+    shelf.anchors[this.draggingAnchorIndex] = { x, y };
+    this.rebuildShelf(shelf);
+  }
+
+  /** ドラッグ終了時の処理です */
+  private handleDragEnd(): void {
+    this.cancelLongPress();
+    this.draggingShelfIndex = -1;
+    this.draggingAnchorIndex = -1;
+  }
+
+  /** 長押しタイマーをキャンセルします */
+  private cancelLongPress(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+    this.longPressShelfIndex = -1;
+    this.longPressProgress = 0;
+    this.longPressStartTime = 0;
+  }
+
+  /** 長押しで棚を削除します */
+  private deleteLongPressedShelf(): void {
+    this.longPressTimer = null;
+    const idx = this.longPressShelfIndex;
+    if (idx < 0 || idx >= this.shelves.length) return;
+
+    const shelf = this.shelves[idx]!;
+    for (const body of shelf.bodies) {
+      Matter.Composite.remove(this.engine.world, body);
+    }
+    this.shelves.splice(idx, 1);
+    this.sound.erase();
+
+    // ドラッグ状態もリセットします
+    this.draggingShelfIndex = -1;
+    this.draggingAnchorIndex = -1;
+    this.longPressShelfIndex = -1;
+    this.longPressProgress = 0;
+    this.longPressStartTime = 0;
+
+    if (this.shelves.length === 0) {
+      this.state = "playing";
+    }
+  }
+
+  /** アンカーの変更に合わせて棚の物理ボディを再構築します */
+  private rebuildShelf(shelf: import("../entities/Shelf").Shelf): void {
+    for (const body of shelf.bodies) {
+      Matter.Composite.remove(this.engine.world, body);
+    }
+
+    shelf.curvePoints = this.generateSplinePoints(shelf.anchors);
+
+    const bodies = this.createSegmentedShelfBodies(shelf.curvePoints);
+    for (const body of bodies) {
+      Matter.Composite.add(this.engine.world, body);
+    }
+    shelf.bodies = bodies;
   }
 
   private addMarble(): void {
