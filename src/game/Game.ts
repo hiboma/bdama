@@ -98,6 +98,7 @@ export class Game {
   private seed: number | null = null;
   private seededRandom: (() => number) | null = null;
   private sound = new Sound();
+  private draggingShelfIndex = -1;
   private levelStartTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -131,6 +132,9 @@ export class Game {
     this.state = "title";
     this.input.onTap((x, y, holdDuration) => this.handleTap(x, y, holdDuration));
     this.input.onDrawEnd((points) => this.handleDrawEnd(points));
+    this.input.onDragStart((x, y) => this.handleDragStart(x, y));
+    this.input.onDragMove((x, y) => this.handleDragMove(x, y));
+    this.input.onDragEnd(() => this.handleDragEnd());
     this.lastTimestamp = performance.now();
     this.loop();
   }
@@ -429,7 +433,7 @@ export class Game {
       // 棚の×マークタップで削除します
       for (let i = this.shelves.length - 1; i >= 0; i--) {
         const shelf = this.shelves[i]!;
-        const last = shelf.points[shelf.points.length - 1]!;
+        const last = shelf.curvePoints[shelf.curvePoints.length - 1]!;
         const dx = x - last.x;
         const dy = y - last.y;
         if (Math.sqrt(dx * dx + dy * dy) < 16) {
@@ -545,14 +549,17 @@ export class Game {
     const totalLen = Math.sqrt(dx * dx + dy * dy);
     if (totalLen < 20) return;
 
-    // Create shelf as segmented bodies for better collision precision
-    const bodies = this.createSegmentedShelfBodies(points);
+    // 始点と終点から制御点を決定します（描画パスの中間点を参考に）
+    const controlPoint = this.computeControlPoint(points);
+    const curvePoints = this.generateBezierPoints(first, controlPoint, last);
+
+    const bodies = this.createSegmentedShelfBodies(curvePoints);
     for (const body of bodies) {
       Matter.Composite.add(this.engine.world, body);
     }
 
     const angle = Math.atan2(dy, dx);
-    this.shelves.push({ points: [...points], bodies, angle, length: totalLen });
+    this.shelves.push({ points: [first, last], bodies, angle, length: totalLen, controlPoint, curvePoints });
     this.sound.draw();
     if (this.state !== "rolling") {
       this.state = "drawing";
@@ -620,6 +627,92 @@ export class Game {
 
     result.push(points[points.length - 1]!);
     return result;
+  }
+
+  /** 描画パスから二次ベジェの制御点を計算します */
+  private computeControlPoint(points: { x: number; y: number }[]): { x: number; y: number } {
+    const first = points[0]!;
+    const last = points[points.length - 1]!;
+    const midIdx = Math.floor(points.length / 2);
+    const mid = points[midIdx]!;
+
+    // 始点-終点の中点からの偏差を制御点に反映します
+    const lineMidX = (first.x + last.x) / 2;
+    const lineMidY = (first.y + last.y) / 2;
+
+    // 二次ベジェの制御点は偏差の2倍にすると曲線が中間点を通ります
+    return {
+      x: lineMidX + (mid.x - lineMidX) * 2,
+      y: lineMidY + (mid.y - lineMidY) * 2,
+    };
+  }
+
+  /** 二次ベジェ曲線からポイント列を生成します */
+  private generateBezierPoints(
+    p0: { x: number; y: number },
+    cp: { x: number; y: number },
+    p2: { x: number; y: number },
+  ): { x: number; y: number }[] {
+    const segments = 20;
+    const result: { x: number; y: number }[] = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = i / segments;
+      const mt = 1 - t;
+      result.push({
+        x: mt * mt * p0.x + 2 * mt * t * cp.x + t * t * p2.x,
+        y: mt * mt * p0.y + 2 * mt * t * cp.y + t * t * p2.y,
+      });
+    }
+    return result;
+  }
+
+  /** 制御点がタップされたかを判定し、ドラッグを開始します */
+  private handleDragStart(x: number, y: number): boolean {
+    if (this.state !== "playing" && this.state !== "drawing") return false;
+
+    for (let i = 0; i < this.shelves.length; i++) {
+      const shelf = this.shelves[i]!;
+      const dx = x - shelf.controlPoint.x;
+      const dy = y - shelf.controlPoint.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 24) {
+        this.draggingShelfIndex = i;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** ドラッグ中に制御点を移動し、棚を再生成します */
+  private handleDragMove(x: number, y: number): void {
+    if (this.draggingShelfIndex < 0) return;
+    const shelf = this.shelves[this.draggingShelfIndex];
+    if (!shelf) return;
+
+    shelf.controlPoint = { x, y };
+    this.rebuildShelf(shelf);
+  }
+
+  /** ドラッグ終了時の処理です */
+  private handleDragEnd(): void {
+    this.draggingShelfIndex = -1;
+  }
+
+  /** 制御点の変更に合わせて棚の物理ボディを再構築します */
+  private rebuildShelf(shelf: import("../entities/Shelf").Shelf): void {
+    // 古いボディを除去します
+    for (const body of shelf.bodies) {
+      Matter.Composite.remove(this.engine.world, body);
+    }
+
+    const first = shelf.points[0]!;
+    const last = shelf.points[shelf.points.length - 1]!;
+    shelf.curvePoints = this.generateBezierPoints(first, shelf.controlPoint, last);
+
+    const bodies = this.createSegmentedShelfBodies(shelf.curvePoints);
+    for (const body of bodies) {
+      Matter.Composite.add(this.engine.world, body);
+    }
+    shelf.bodies = bodies;
   }
 
   private addMarble(): void {
