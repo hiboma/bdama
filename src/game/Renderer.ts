@@ -355,22 +355,37 @@ export class Renderer {
 
   drawStart(x: number, y: number, introAge = 999): void {
     const ctx = this.ctx;
+    // introAge < 0: タイマー開始前 → 常にパルス表示します
+    const showPulse = introAge < 0 || introAge < 1.5;
 
-    // Intro ripple effect
-    if (introAge < 1.5) {
-      const rippleCount = 2;
-      for (let i = 0; i < rippleCount; i++) {
-        const delay = i * 0.3;
-        const age = introAge - delay;
-        if (age > 0 && age < 1.2) {
-          const progress = age / 1.2;
-          const rippleR = 15 + progress * 50;
-          const rippleAlpha = (1 - progress) * 0.3;
-          ctx.beginPath();
-          ctx.arc(x, y, rippleR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(231,76,60,${rippleAlpha})`;
-          ctx.lineWidth = 3 * (1 - progress);
-          ctx.stroke();
+    // Ripple effect
+    if (showPulse) {
+      if (introAge < 0) {
+        // タイマー開始前：ループするパルスリング
+        const loopAge = this.t % 1.2;
+        const progress = loopAge / 1.2;
+        const rippleR = 20 + progress * 40;
+        const rippleAlpha = (1 - progress) * 0.25;
+        ctx.beginPath();
+        ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(231,76,60,${rippleAlpha})`;
+        ctx.lineWidth = 2.5 * (1 - progress);
+        ctx.stroke();
+      } else {
+        const rippleCount = 2;
+        for (let i = 0; i < rippleCount; i++) {
+          const delay = i * 0.3;
+          const age = introAge - delay;
+          if (age > 0 && age < 1.2) {
+            const progress = age / 1.2;
+            const rippleR = 15 + progress * 50;
+            const rippleAlpha = (1 - progress) * 0.3;
+            ctx.beginPath();
+            ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(231,76,60,${rippleAlpha})`;
+            ctx.lineWidth = 3 * (1 - progress);
+            ctx.stroke();
+          }
         }
       }
     }
@@ -595,88 +610,87 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  drawShelf(shelf: Shelf): void {
+  drawShelf(shelf: Shelf, deleteProgress = 0): void {
     const ctx = this.ctx;
     const pts = shelf.curvePoints;
     if (pts.length < 2) return;
 
-    // ベジェ曲線のパスを描画します
+    // 長押し削除中は棚全体を赤く変化させます
+    const isDeleting = deleteProgress > 0;
+    const shake = isDeleting ? Math.sin(deleteProgress * 20) * deleteProgress * 3 : 0;
+
+    ctx.save();
+    if (shake !== 0) {
+      ctx.translate(shake, 0);
+    }
+
+    // スプラインのパスを描画します
     ctx.beginPath();
     ctx.moveTo(pts[0]!.x, pts[0]!.y);
     for (let i = 1; i < pts.length; i++) {
       ctx.lineTo(pts[i]!.x, pts[i]!.y);
     }
 
+    // 削除中は赤系の色に変化します
+    const glowColor = isDeleting
+      ? `rgba(231,76,60,${0.15 + deleteProgress * 0.2})`
+      : "rgba(243,156,18,0.15)";
+    const mainColor = isDeleting
+      ? `rgba(231,76,60,${0.5 + deleteProgress * 0.3})`
+      : "rgba(243,156,18,0.5)";
+    const innerColor = isDeleting
+      ? `rgba(255,100,80,${0.3 + deleteProgress * 0.2})`
+      : "rgba(255,217,61,0.3)";
+
     // Outer glow
-    ctx.strokeStyle = "rgba(243,156,18,0.15)";
+    ctx.strokeStyle = glowColor;
     ctx.lineWidth = 16;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke();
 
     // Main line
-    ctx.strokeStyle = "rgba(243,156,18,0.5)";
+    ctx.strokeStyle = mainColor;
     ctx.lineWidth = 8;
     ctx.stroke();
 
     // Inner highlight
-    ctx.strokeStyle = "rgba(255,217,61,0.3)";
+    ctx.strokeStyle = innerColor;
     ctx.lineWidth = 3;
     ctx.stroke();
 
     ctx.lineCap = "butt";
 
-    // 制御点ハンドル（丸いつまみ）
-    const cp = shelf.controlPoint;
-    const handlePulse = 1 + Math.sin(this.t * 3) * 0.08;
-    const handleR = 10 * handlePulse;
+    // 端点のハンドルを描画します（最初と最後のアンカーのみ）
+    const endpoints = [0, shelf.anchors.length - 1];
+    for (const j of endpoints) {
+      const a = shelf.anchors[j]!;
+      const handleColor = isDeleting ? COLORS.red : COLORS.gold;
 
-    // 始点・終点と制御点を繋ぐガイド線
-    const p0 = shelf.points[0]!;
-    const p1 = shelf.points[shelf.points.length - 1]!;
-    ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(cp.x, cp.y);
-    ctx.lineTo(p1.x, p1.y);
-    ctx.strokeStyle = "rgba(243,156,18,0.15)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
+      // 長押し中はプログレスリングを表示します
+      if (isDeleting) {
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * deleteProgress);
+        ctx.strokeStyle = COLORS.red;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
 
-    // Handle circle
-    ctx.beginPath();
-    ctx.arc(cp.x, cp.y, handleR, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fill();
-    ctx.strokeStyle = COLORS.gold;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = isDeleting ? "rgba(255,200,200,0.9)" : "rgba(255,255,255,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = handleColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-    // Handle inner dot
-    ctx.beginPath();
-    ctx.arc(cp.x, cp.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = COLORS.gold;
-    ctx.fill();
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = handleColor;
+      ctx.fill();
+    }
 
-    // × mark at endpoint for deletion
-    const last = pts[pts.length - 1]!;
-    const xm = last.x;
-    const ym = last.y;
-    ctx.beginPath();
-    ctx.arc(xm, ym, 10, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(231,76,60,0.7)";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(xm - 4, ym - 4);
-    ctx.lineTo(xm + 4, ym + 4);
-    ctx.moveTo(xm + 4, ym - 4);
-    ctx.lineTo(xm - 4, ym + 4);
-    ctx.strokeStyle = COLORS.white;
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.lineCap = "butt";
+    ctx.restore();
   }
 
   drawCurrentPath(points: { x: number; y: number }[]): void {
