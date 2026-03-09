@@ -16,6 +16,7 @@ export class Input {
 
   currentPath: Point[] = [];
   pointerDown: Point | null = null;
+  hoverPoint: Point | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -47,6 +48,13 @@ export class Input {
     this.canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
     this.canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
     this.canvas.addEventListener("pointercancel", () => this.onPointerCancel());
+    this.canvas.addEventListener("mousemove", (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      this.hoverPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    });
+    this.canvas.addEventListener("mouseleave", () => {
+      this.hoverPoint = null;
+    });
   }
 
   private getPoint(e: PointerEvent): Point {
