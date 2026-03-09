@@ -2,11 +2,12 @@ import Matter from "matter-js";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { LevelManager } from "./LevelManager";
-import type { ObstacleData, BumperData } from "./LevelManager";
+import type { ObstacleData, BumperData, TriangleData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
+export type ObstacleType = "rect" | "circle" | "triangle";
 
 export interface GoalEffect {
   x: number;
@@ -27,11 +28,9 @@ const TIME_LIMIT = 30;
 const DEFAULT_SPEED = 0.4;
 const MIN_SPEED = 0.2;
 const MAX_SPEED = 1.0;
-const SPEED_STEP = 0.1;
 const DEFAULT_RESTITUTION = 0.5;
 const MIN_RESTITUTION = 0.0;
 const MAX_RESTITUTION = 1.0;
-const RESTITUTION_STEP = 0.1;
 const MARBLE_RADIUS = 17;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
@@ -93,6 +92,10 @@ export class Game {
   private generatedBumpers: BumperData[] = [];
   private bumperBodies: Matter.Body[] = [];
   private bumperHitTimes: Map<number, number> = new Map();
+  private generatedTriangles: TriangleData[] = [];
+  private triangleBodies: Matter.Body[] = [];
+  private triangleHitTimes: Map<number, number> = new Map();
+  private selectedObstacle: ObstacleType | null = null;
   private marbleHits: Map<number, number> = new Map();
   private marblesFallen = 0;
   private seed: number | null = null;
@@ -205,7 +208,7 @@ export class Game {
     this.renderer.drawBackground(this.width, this.height);
 
     if (this.state === "title") {
-      this.renderer.drawTitleScreen(this.width, this.height, this.speed, this.restitution);
+      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacle);
       return;
     }
 
@@ -221,12 +224,6 @@ export class Game {
 
     const level = this.levelManager.current();
     if (!level) return;
-
-    this.renderer.drawLevelBackground(
-      this.levelManager.currentLevel,
-      this.width,
-      this.height,
-    );
 
     const introAge = (performance.now() - this.levelStartTime) / 1000;
 
@@ -268,6 +265,19 @@ export class Game {
         bp.y * this.height,
         bp.r * this.width,
         hitAge,
+      );
+    }
+
+    for (let i = 0; i < this.generatedTriangles.length; i++) {
+      const tri = this.generatedTriangles[i]!;
+      const body = this.triangleBodies[i];
+      const hitTime = body ? this.triangleHitTimes.get(body.id) : undefined;
+      const hitAge2 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      this.renderer.drawTriangle(
+        tri.x * this.width,
+        tri.y * this.height,
+        tri.size * this.width,
+        hitAge2,
       );
     }
 
@@ -384,54 +394,49 @@ export class Game {
       const cx = this.width / 2;
       const cy = this.height / 2;
 
-      // 速度 -/+ ボタン（タイトル画面の設定 UI）
-      const speedY = cy + 175;
-      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - speedY) < 22) {
-        if (this.speed > MIN_SPEED + 0.01) {
-          this.speed = Math.round((this.speed - SPEED_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
-      }
-      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - speedY) < 22) {
-        if (this.speed < MAX_SPEED - 0.01) {
-          this.speed = Math.round((this.speed + SPEED_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
-      }
+      // 障害物カードのタップ判定
+      const cardW = 90;
+      const cardH = 110;
+      const gap = 12;
+      const totalW = cardW * 3 + gap * 2;
+      const startCardX = cx - totalW / 2 + cardW / 2;
+      const cardY = cy + 30;
+      const types: ObstacleType[] = ["rect", "circle", "triangle"];
 
-      // 弾性 -/+ ボタン
-      const restY = cy + 235;
-      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - restY) < 22) {
-        if (this.restitution > MIN_RESTITUTION + 0.01) {
-          this.restitution = Math.round((this.restitution - RESTITUTION_STEP) * 10) / 10;
-          this.saveSettings();
+      for (let i = 0; i < 3; i++) {
+        const cardX = startCardX + i * (cardW + gap);
+        if (
+          Math.abs(x - cardX) < cardW / 2 &&
+          Math.abs(y - cardY) < cardH / 2
+        ) {
           this.sound.tap();
+          if (this.selectedObstacle === types[i]) {
+            this.selectedObstacle = null;
+          } else {
+            this.selectedObstacle = types[i]!;
+          }
+          return;
         }
-        return;
-      }
-      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - restY) < 22) {
-        if (this.restitution < MAX_RESTITUTION - 0.01) {
-          this.restitution = Math.round((this.restitution + RESTITUTION_STEP) * 10) / 10;
-          this.saveSettings();
-          this.sound.tap();
-        }
-        return;
       }
 
       // あそぶボタン
-      this.sound.tap();
-      this.state = "playing";
-      this.levelManager.loadLevel(1);
-      this.shelves = [];
-      this.timeRemaining = TIME_LIMIT;
-      this.timerStarted = false;
-      this.levelStartTime = performance.now();
-      this.generateObstacles();
-      this.setupObstaclesAndWhiteBalls();
+      const btnY = cardY + cardH / 2 + 50;
+      if (
+        this.selectedObstacle !== null &&
+        Math.abs(x - cx) < 100 &&
+        Math.abs(y - btnY) < 27
+      ) {
+        this.sound.tap();
+        this.state = "playing";
+        this.levelManager.loadLevel(1);
+        this.shelves = [];
+        this.timeRemaining = TIME_LIMIT;
+        this.timerStarted = false;
+        this.levelStartTime = performance.now();
+        this.generateObstacles();
+        this.setupObstaclesAndWhiteBalls();
+        return;
+      }
       return;
     }
 
@@ -440,21 +445,33 @@ export class Game {
       const centerY = this.height / 2;
 
       if (this.state === "clear") {
+        // もういちどボタン
         if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
           this.sound.tap();
-          this.levelManager.nextLevel();
           this.resetLevel();
           return;
         }
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 185)) < 30) {
+        // タイトルへボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 190)) < 30) {
           this.sound.tap();
-          this.resetLevel();
+          this.state = "title";
+          this.selectedObstacle = null;
+          this.cleanupPhysics();
           return;
         }
       } else {
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 60)) < 30) {
+        // リトライボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 70)) < 30) {
           this.sound.tap();
           this.resetLevel();
+          return;
+        }
+        // タイトルへボタン
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 135)) < 30) {
+          this.sound.tap();
+          this.state = "title";
+          this.selectedObstacle = null;
+          this.cleanupPhysics();
           return;
         }
       }
@@ -915,6 +932,26 @@ export class Game {
       this.bumperBodies.push(bpBody);
     }
 
+    // Triangles
+    this.triangleBodies = [];
+    for (const tri of this.generatedTriangles) {
+      const triBody = Matter.Bodies.polygon(
+        tri.x * this.width,
+        tri.y * this.height,
+        3,
+        tri.size * this.width,
+        {
+          isStatic: true,
+          restitution: 0.8,
+          friction: 0.2,
+          label: "triangle",
+          render: { visible: false },
+        },
+      );
+      Matter.Composite.add(this.engine.world, triBody);
+      this.triangleBodies.push(triBody);
+    }
+
     // White balls (adjacent to obstacles)
     this.setupWhiteBalls();
   }
@@ -1122,6 +1159,9 @@ export class Game {
     this.obstacleHitTimes.clear();
     this.bumperBodies = [];
     this.bumperHitTimes.clear();
+    this.generatedTriangles = [];
+    this.triangleBodies = [];
+    this.triangleHitTimes.clear();
     this.generateObstacles();
     this.setupObstaclesAndWhiteBalls();
   }
@@ -1173,51 +1213,69 @@ export class Game {
       this.seededRandom = null;
     }
 
-    this.generatedObstacles = [...level.obstacles];
+    this.generatedObstacles = [];
+    this.generatedBumpers = [];
+    this.generatedTriangles = [];
 
     const startX = level.start.x;
     const startY = level.start.y;
     const goalX = level.goal.x;
     const goalY = level.goal.y;
 
-    const count = level.randomObstacles ?? 0;
-    for (let i = 0; i < count; i++) {
-      const minY = Math.min(startY, goalY) + 0.1;
-      const maxY = Math.max(startY, goalY) - 0.1;
-      const x = 0.15 + this.getRandom() * 0.7;
-      const y = minY + this.getRandom() * (maxY - minY);
-      const w = 0.08 + this.getRandom() * 0.15;
-      const h = 0.03 + this.getRandom() * 0.04;
+    const count = 3 + Math.floor(this.getRandom() * 3); // 3-5 個
 
-      // スタートとゴールから離れた位置にのみ配置します
-      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
-      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
-      if (dStart < 0.15 || dGoal < 0.15) {
-        i--;
-        continue;
+    if (this.selectedObstacle === "rect") {
+      for (let i = 0; i < count; i++) {
+        const minY = Math.min(startY, goalY) + 0.1;
+        const maxY = Math.max(startY, goalY) - 0.1;
+        const x = 0.15 + this.getRandom() * 0.7;
+        const y = minY + this.getRandom() * (maxY - minY);
+        const w = 0.08 + this.getRandom() * 0.15;
+        const h = 0.03 + this.getRandom() * 0.04;
+
+        const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+        const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
+        if (dStart < 0.15 || dGoal < 0.15) {
+          i--;
+          continue;
+        }
+
+        this.generatedObstacles.push({ x, y, w, h });
       }
+    } else if (this.selectedObstacle === "circle") {
+      for (let i = 0; i < count; i++) {
+        const minY = Math.min(startY, goalY) + 0.1;
+        const maxY = Math.max(startY, goalY) - 0.1;
+        const x = 0.15 + this.getRandom() * 0.7;
+        const y = minY + this.getRandom() * (maxY - minY);
+        const r = 0.03 + this.getRandom() * 0.02;
 
-      this.generatedObstacles.push({ x, y, w, h });
-    }
+        const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+        const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
+        if (dStart < 0.15 || dGoal < 0.15) {
+          i--;
+          continue;
+        }
 
-    // バンパー（円形障害物）の生成
-    this.generatedBumpers = [...level.bumpers];
-    const bumperCount = level.randomBumpers ?? 0;
-    for (let i = 0; i < bumperCount; i++) {
-      const minY = Math.min(startY, goalY) + 0.1;
-      const maxY = Math.max(startY, goalY) - 0.1;
-      const x = 0.15 + this.getRandom() * 0.7;
-      const y = minY + this.getRandom() * (maxY - minY);
-      const r = 0.03 + this.getRandom() * 0.02;
-
-      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
-      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
-      if (dStart < 0.15 || dGoal < 0.15) {
-        i--;
-        continue;
+        this.generatedBumpers.push({ x, y, r });
       }
+    } else if (this.selectedObstacle === "triangle") {
+      for (let i = 0; i < count; i++) {
+        const minY = Math.min(startY, goalY) + 0.1;
+        const maxY = Math.max(startY, goalY) - 0.1;
+        const x = 0.15 + this.getRandom() * 0.7;
+        const y = minY + this.getRandom() * (maxY - minY);
+        const size = 0.03 + this.getRandom() * 0.02;
 
-      this.generatedBumpers.push({ x, y, r });
+        const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+        const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
+        if (dStart < 0.15 || dGoal < 0.15) {
+          i--;
+          continue;
+        }
+
+        this.generatedTriangles.push({ x, y, size });
+      }
     }
   }
 
@@ -1260,6 +1318,19 @@ export class Game {
         }
         if (hitBumper && bumperMarble) {
           this.bumperHitTimes.set(hitBumper.id, performance.now());
+          this.sound.bounce();
+        }
+
+        // トライアングルの衝突フィードバック
+        let hitTriangle: Matter.Body | null = null;
+        let triMarble: Matter.Body | null = null;
+        if (bodyA.label === "triangle" && bodyB.label === "marble") {
+          hitTriangle = bodyA; triMarble = bodyB;
+        } else if (bodyB.label === "triangle" && bodyA.label === "marble") {
+          hitTriangle = bodyB; triMarble = bodyA;
+        }
+        if (hitTriangle && triMarble) {
+          this.triangleHitTimes.set(hitTriangle.id, performance.now());
           this.sound.bounce();
         }
       }
@@ -1384,17 +1455,6 @@ export class Game {
     }
   }
 
-  private saveSettings(): void {
-    try {
-      localStorage.setItem(
-        "b-dama-settings",
-        JSON.stringify({ speed: this.speed, restitution: this.restitution }),
-      );
-    } catch {
-      // localStorage が使えない場合は無視します
-    }
-  }
-
   private cleanupPhysics(): void {
     Matter.Composite.clear(this.engine.world, false);
     this.marbles = [];
@@ -1406,5 +1466,7 @@ export class Game {
     this.obstacleHitTimes.clear();
     this.bumperBodies = [];
     this.bumperHitTimes.clear();
+    this.triangleBodies = [];
+    this.triangleHitTimes.clear();
   }
 }
