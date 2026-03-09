@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - UI Mock</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --sky: #e8f4fd;
+  --pink: #ffb5c2;
+  --peach: #ffd4a8;
+  --mint: #b8e8d0;
+  --lavender: #d4bfff;
+  --butter: #fff3b0;
+  --coral: #ff9a9e;
+  --baby-blue: #a8d8ea;
+  --soft-white: #fef9f4;
+  --warm-brown: #8b6f5e;
+  --dark-text: #5a4a3a;
+  --obstacle-color: #c4a882;
+  --enemy-color: #e87fa0;
+  --shadow-soft: 0 4px 20px rgba(139,111,94,0.15);
+  --shadow-chunky: 0 6px 0 rgba(139,111,94,0.2), 0 8px 24px rgba(139,111,94,0.15);
+}
+
+html, body {
+  font-family: 'Zen Maru Gothic', sans-serif;
+  background: var(--soft-white);
+  color: var(--dark-text);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Tab Navigation */
+.tab-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  background: rgba(254,249,244,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 3px solid var(--peach);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  background: none;
+  color: var(--warm-brown);
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: color 0.2s;
+}
+.tab-btn.active {
+  color: var(--coral);
+}
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  background: var(--coral);
+  border-radius: 3px 3px 0 0;
+}
+
+/* Screens */
+.screen {
+  display: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: 48px;
+}
+.screen.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================
+   SCREEN 1: TITLE
+   ============================ */
+.title-screen {
+  background: linear-gradient(170deg, #fce4ec 0%, #e8f4fd 35%, #e8f5e9 65%, #fff9c4 100%);
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* floating background shapes */
+.title-screen::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: -30px;
+  width: 120px;
+  height: 120px;
+  background: rgba(255,181,194,0.25);
+  border-radius: 50%;
+  animation: float-shape 6s ease-in-out infinite;
+}
+.title-screen::after {
+  content: '';
+  position: absolute;
+  bottom: 15%;
+  right: -20px;
+  width: 90px;
+  height: 90px;
+  background: rgba(168,216,234,0.3);
+  border-radius: 50%;
+  animation: float-shape 8s ease-in-out infinite reverse;
+}
+
+@keyframes float-shape {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.1); }
+}
+
+.title-marble-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  animation: title-bounce 2s ease-in-out infinite;
+}
+
+@keyframes title-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-40px); }
+  50% { transform: translateY(0); }
+  60% { transform: translateY(-12px); }
+  75% { transform: translateY(0); }
+}
+
+/* marble shadow */
+.title-marble-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 16px;
+  background: radial-gradient(ellipse, rgba(139,111,94,0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: shadow-pulse 2s ease-in-out infinite;
+}
+@keyframes shadow-pulse {
+  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.8; }
+  30% { transform: translateX(-50%) scaleX(0.6); opacity: 0.4; }
+  50% { transform: translateX(-50%) scaleX(1); opacity: 0.8; }
+  60% { transform: translateX(-50%) scaleX(0.85); opacity: 0.6; }
+  75% { transform: translateX(-50%) scaleX(1); opacity: 0.8; }
+}
+
+.marble {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(circle at 65% 70%, rgba(100,180,220,0.4) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, #78c4e8 0%, #4a9ebb 40%, #2d7a9c 70%, #1a5a7a 100%);
+  box-shadow:
+    inset -8px -8px 20px rgba(0,0,0,0.15),
+    inset 4px 4px 10px rgba(255,255,255,0.3),
+    0 8px 32px rgba(45,122,156,0.3);
+  position: relative;
+}
+.marble::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  left: 25%;
+  width: 28%;
+  height: 20%;
+  background: rgba(255,255,255,0.7);
+  border-radius: 50%;
+  transform: rotate(-30deg);
+  filter: blur(2px);
+}
+
+.title-text {
+  text-align: center;
+}
+.title-text h1 {
+  font-size: 36px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--coral), #e8789a, var(--lavender));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 2px;
+  line-height: 1.3;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 4px rgba(139,111,94,0.15));
+}
+.title-text p {
+  font-size: 14px;
+  color: var(--warm-brown);
+  margin-top: 6px;
+  opacity: 0.7;
+}
+
+.play-btn {
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 900;
+  color: white;
+  background: linear-gradient(135deg, var(--coral), #e8789a);
+  border: none;
+  border-radius: 50px;
+  padding: 18px 64px;
+  box-shadow: var(--shadow-chunky);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  letter-spacing: 4px;
+}
+.play-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(139,111,94,0.2), 0 4px 12px rgba(139,111,94,0.15);
+}
+
+/* floating decorations */
+.deco {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.deco-1 { width: 20px; height: 20px; background: var(--butter); top: 20%; left: 15%; animation: float-shape 5s ease-in-out infinite 0.5s; }
+.deco-2 { width: 14px; height: 14px; background: var(--mint); top: 35%; right: 12%; animation: float-shape 7s ease-in-out infinite 1s; }
+.deco-3 { width: 18px; height: 18px; background: var(--lavender); bottom: 25%; left: 20%; animation: float-shape 6s ease-in-out infinite 1.5s; }
+.deco-4 { width: 12px; height: 12px; background: var(--peach); bottom: 35%; right: 18%; animation: float-shape 4s ease-in-out infinite 0.8s; }
+
+/* ============================
+   GAME SCREENS (shared)
+   ============================ */
+.game-screen {
+  background: linear-gradient(180deg, var(--sky) 0%, #f0f7ea 100%);
+  position: relative;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  flex-shrink: 0;
+}
+.level-badge {
+  background: white;
+  border-radius: 20px;
+  padding: 6px 18px;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: var(--shadow-soft);
+  color: var(--warm-brown);
+}
+.stars {
+  display: flex;
+  gap: 4px;
+}
+.star {
+  width: 28px;
+  height: 28px;
+  position: relative;
+}
+.star svg {
+  width: 100%;
+  height: 100%;
+}
+.star-empty { fill: #e0d5c8; }
+.star-filled { fill: #ffd93d; filter: drop-shadow(0 1px 2px rgba(255,200,0,0.4)); }
+
+/* game area */
+.game-area {
+  flex: 1;
+  margin: 8px 16px;
+  background: white;
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft), inset 0 0 0 3px rgba(139,111,94,0.08);
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* grid dots background */
+.game-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(139,111,94,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 12px 12px;
+}
+
+/* goal zone */
+.goal-zone {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.goal-cup {
+  width: 72px;
+  height: 60px;
+  margin: 0 auto;
+  position: relative;
+}
+.goal-cup-body {
+  width: 72px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--butter), #ffe082);
+  border-radius: 8px 8px 20px 20px;
+  position: absolute;
+  bottom: 0;
+  box-shadow: inset -4px -4px 8px rgba(139,111,94,0.1), 0 2px 8px rgba(139,111,94,0.15);
+  border: 3px solid #f0d060;
+}
+.goal-cup-rim {
+  width: 80px;
+  height: 12px;
+  background: linear-gradient(135deg, #ffe082, #ffd54f);
+  border-radius: 6px;
+  position: absolute;
+  top: 4px;
+  left: -4px;
+  box-shadow: 0 2px 4px rgba(139,111,94,0.15);
+  border: 2px solid #f0d060;
+}
+.goal-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  margin-top: 6px;
+  opacity: 0.6;
+  letter-spacing: 2px;
+}
+
+/* start zone */
+.start-zone {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.start-platform {
+  width: 80px;
+  height: 20px;
+  background: linear-gradient(135deg, var(--mint), #8dd4ae);
+  border-radius: 12px;
+  margin: 0 auto;
+  box-shadow: 0 4px 0 #6bb890, 0 6px 12px rgba(107,184,144,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.start-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  margin-top: 8px;
+  opacity: 0.6;
+  letter-spacing: 2px;
+}
+
+/* marble in game */
+.game-marble {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(circle at 65% 70%, rgba(100,180,220,0.4) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, #78c4e8 0%, #4a9ebb 40%, #2d7a9c 70%, #1a5a7a 100%);
+  box-shadow:
+    inset -3px -3px 8px rgba(0,0,0,0.15),
+    inset 2px 2px 4px rgba(255,255,255,0.3),
+    0 4px 12px rgba(45,122,156,0.3);
+  position: absolute;
+  z-index: 10;
+}
+.game-marble::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  left: 25%;
+  width: 28%;
+  height: 20%;
+  background: rgba(255,255,255,0.7);
+  border-radius: 50%;
+  transform: rotate(-30deg);
+  filter: blur(1px);
+}
+
+/* drawn path */
+.drawn-path {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.drawn-path svg {
+  width: 100%;
+  height: 100%;
+}
+.path-line {
+  fill: none;
+  stroke: var(--peach);
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+  filter: drop-shadow(0 2px 4px rgba(255,180,130,0.3));
+}
+.path-line-border {
+  fill: none;
+  stroke: #f0c090;
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.4;
+}
+/* finger indicator */
+.finger-dot {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,150,100,0.5);
+  background: rgba(255,200,170,0.3);
+  z-index: 20;
+  animation: finger-pulse 1.5s ease-in-out infinite;
+}
+@keyframes finger-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 0.4; }
+}
+
+/* obstacles */
+.obstacle {
+  position: absolute;
+  z-index: 8;
+}
+.obstacle-block {
+  background: linear-gradient(135deg, #d4c4a8, var(--obstacle-color));
+  border-radius: 8px;
+  box-shadow: 0 3px 0 #a89070, 0 4px 10px rgba(139,111,94,0.2);
+  border: 2px solid #bfa882;
+}
+.obstacle-wall {
+  background: linear-gradient(180deg, #c4a882, #b09070);
+  border-radius: 6px;
+  box-shadow: 0 3px 0 #907060, 0 4px 10px rgba(139,111,94,0.2);
+  border: 2px solid #a89070;
+}
+
+/* moving obstacle */
+.moving-obstacle {
+  position: absolute;
+  z-index: 8;
+  animation: obstacle-move 3s ease-in-out infinite;
+}
+@keyframes obstacle-move {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(60px); }
+}
+.moving-obstacle-body {
+  width: 50px;
+  height: 24px;
+  background: linear-gradient(135deg, #ffab91, #ff8a65);
+  border-radius: 12px;
+  box-shadow: 0 3px 0 #e57350, 0 4px 10px rgba(229,115,80,0.3);
+  border: 2px solid #e8805a;
+  position: relative;
+}
+.motion-arrows {
+  position: absolute;
+  top: 50%;
+  right: -28px;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #ff8a65;
+  opacity: 0.6;
+  animation: arrow-fade 1.5s ease-in-out infinite;
+}
+@keyframes arrow-fade {
+  0%, 100% { opacity: 0.3; transform: translateY(-50%) translateX(0); }
+  50% { opacity: 0.8; transform: translateY(-50%) translateX(4px); }
+}
+
+/* enemy */
+.enemy {
+  position: absolute;
+  z-index: 9;
+  animation: enemy-wobble 2s ease-in-out infinite;
+}
+@keyframes enemy-wobble {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+.enemy-body {
+  width: 40px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--enemy-color), #d35a7a);
+  border-radius: 50% 50% 45% 45%;
+  position: relative;
+  box-shadow: 0 3px 0 #c04a6a, 0 4px 10px rgba(208,90,122,0.3);
+}
+.enemy-eyes {
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.enemy-eye {
+  width: 8px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  position: relative;
+}
+.enemy-eye::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background: #4a3040;
+  border-radius: 50%;
+}
+.enemy-mouth {
+  position: absolute;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 6px;
+  border: 2px solid #4a3040;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.enemy-label {
+  font-size: 9px;
+  text-align: center;
+  color: var(--enemy-color);
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* push arrows from enemy */
+.push-arrow {
+  position: absolute;
+  width: 20px;
+  height: 2px;
+  background: var(--enemy-color);
+  opacity: 0.5;
+  border-radius: 2px;
+}
+.push-arrow::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -3px;
+  border: 4px solid transparent;
+  border-left-color: var(--enemy-color);
+}
+.push-arrow-1 { top: 30%; right: -28px; animation: push-anim 1s ease-in-out infinite; }
+.push-arrow-2 { top: 55%; right: -24px; animation: push-anim 1s ease-in-out infinite 0.3s; }
+@keyframes push-anim {
+  0%, 100% { opacity: 0.2; transform: translateX(0); }
+  50% { opacity: 0.7; transform: translateX(6px); }
+}
+
+/* game footer */
+.game-footer {
+  padding: 12px 20px 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.reset-btn {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  background: white;
+  border: 3px solid #e0d5c8;
+  border-radius: 16px;
+  padding: 12px 32px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #e0d5c8;
+  transition: transform 0.1s;
+}
+.reset-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #e0d5c8;
+}
+
+.hint-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: var(--warm-brown);
+  opacity: 0.3;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.8;
+  z-index: 1;
+}
+
+/* ============================
+   SCREEN 5: CLEAR
+   ============================ */
+.clear-screen {
+  background: linear-gradient(170deg, #fff9c4 0%, #fce4ec 40%, #e8f4fd 70%, #e8f5e9 100%);
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* sparkles */
+.sparkle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: sparkle-anim var(--dur, 2s) ease-in-out infinite var(--delay, 0s);
+}
+@keyframes sparkle-anim {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  20% { opacity: 1; transform: scale(1) rotate(90deg); }
+  80% { opacity: 1; transform: scale(1) rotate(270deg); }
+}
+.sparkle::before, .sparkle::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: inherit;
+}
+.sparkle::before {
+  width: 100%;
+  height: 3px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.sparkle::after {
+  width: 3px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.clear-text {
+  font-size: 52px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffd93d, #ff9a9e, #d4bfff, #78c4e8);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 3s ease-in-out infinite;
+  filter: drop-shadow(0 3px 6px rgba(139,111,94,0.2));
+  letter-spacing: 6px;
+}
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.clear-stars {
+  display: flex;
+  gap: 12px;
+  animation: stars-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+@keyframes stars-pop {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.clear-star {
+  width: 56px;
+  height: 56px;
+  animation: star-spin 1.5s ease-in-out infinite;
+}
+.clear-star:nth-child(1) { animation-delay: 0s; }
+.clear-star:nth-child(2) { animation-delay: 0.15s; }
+.clear-star:nth-child(3) { animation-delay: 0.3s; }
+@keyframes star-spin {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(10deg) scale(1.1); }
+  75% { transform: rotate(-10deg) scale(1.05); }
+}
+.clear-star svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 8px rgba(255,200,0,0.4));
+}
+
+.clear-message {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  opacity: 0.7;
+}
+
+.clear-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 260px;
+}
+.next-btn {
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 900;
+  color: white;
+  background: linear-gradient(135deg, #78c4e8, #4a9ebb);
+  border: none;
+  border-radius: 20px;
+  padding: 16px 0;
+  box-shadow: 0 5px 0 #2d7a9c, 0 7px 20px rgba(45,122,156,0.3);
+  cursor: pointer;
+  letter-spacing: 4px;
+  transition: transform 0.1s;
+}
+.next-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #2d7a9c, 0 3px 10px rgba(45,122,156,0.3);
+}
+.retry-btn {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  background: white;
+  border: 3px solid #e0d5c8;
+  border-radius: 16px;
+  padding: 14px 0;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #e0d5c8;
+  transition: transform 0.1s;
+}
+.retry-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #e0d5c8;
+}
+
+/* confetti particles */
+.confetti {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  animation: confetti-fall var(--dur, 3s) linear infinite var(--delay, 0s);
+  opacity: 0.8;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- Tab Navigation -->
+<nav class="tab-nav" id="tabNav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="level1">Lv.1 かんたん</button>
+  <button class="tab-btn" data-screen="level5">Lv.5 ふつう</button>
+  <button class="tab-btn" data-screen="level10">Lv.10 むずい</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<!-- ======================== -->
+<!-- SCREEN 1: TITLE          -->
+<!-- ======================== -->
+<section class="screen title-screen active" id="screen-title">
+  <div class="deco deco-1"></div>
+  <div class="deco deco-2"></div>
+  <div class="deco deco-3"></div>
+  <div class="deco deco-4"></div>
+
+  <div class="title-marble-wrap">
+    <div class="marble"></div>
+  </div>
+
+  <div class="title-text">
+    <h1>ビー玉<br>ころころ</h1>
+    <p>ゆびで みちを つくろう！</p>
+  </div>
+
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<!-- ======================== -->
+<!-- SCREEN 2: LEVEL 1        -->
+<!-- ======================== -->
+<section class="screen game-screen" id="screen-level1">
+  <div class="game-header">
+    <div class="level-badge">レベル 1</div>
+    <div class="stars">
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <!-- goal -->
+    <div class="goal-zone">
+      <div class="goal-cup">
+        <div class="goal-cup-rim"></div>
+        <div class="goal-cup-body"></div>
+      </div>
+      <div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- hint text -->
+    <div class="hint-label">ゆびで なぞって<br>みちを つくろう</div>
+
+    <!-- drawn path example -->
+    <div class="drawn-path">
+      <svg viewBox="0 0 340 500" preserveAspectRatio="none">
+        <path class="path-line-border" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/>
+        <path class="path-line" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/>
+      </svg>
+    </div>
+
+    <!-- finger indicator -->
+    <div class="finger-dot" style="bottom: 22%; left: 44%;"></div>
+
+    <!-- marble on start -->
+    <div class="game-marble" style="bottom: 24px; left: calc(50% - 18px);"></div>
+
+    <!-- start -->
+    <div class="start-zone">
+      <div class="start-platform"></div>
+      <div class="start-label">スタート</div>
+    </div>
+  </div>
+
+  <div class="game-footer">
+    <button class="reset-btn">リセット</button>
+  </div>
+</section>
+
+<!-- ======================== -->
+<!-- SCREEN 3: LEVEL 5        -->
+<!-- ======================== -->
+<section class="screen game-screen" id="screen-level5">
+  <div class="game-header">
+    <div class="level-badge">レベル 5</div>
+    <div class="stars">
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <!-- goal -->
+    <div class="goal-zone">
+      <div class="goal-cup">
+        <div class="goal-cup-rim"></div>
+        <div class="goal-cup-body"></div>
+      </div>
+      <div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- obstacles -->
+    <div class="obstacle">
+      <div class="obstacle-block" style="position:absolute; top: 30%; left: 10%; width: 90px; height: 28px;"></div>
+    </div>
+    <div class="obstacle">
+      <div class="obstacle-block" style="position:absolute; top: 48%; right: 10%; width: 100px; height: 28px;"></div>
+    </div>
+    <div class="obstacle">
+      <div class="obstacle-wall" style="position:absolute; top: 36%; left: 55%; width: 16px; height: 70px;"></div>
+    </div>
+
+    <!-- drawn path weaving between obstacles -->
+    <div class="drawn-path">
+      <svg viewBox="0 0 340 500" preserveAspectRatio="none">
+        <path class="path-line-border" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/>
+        <path class="path-line" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/>
+      </svg>
+    </div>
+
+    <!-- marble on start -->
+    <div class="game-marble" style="bottom: 24px; left: calc(50% - 18px);"></div>
+
+    <!-- start -->
+    <div class="start-zone">
+      <div class="start-platform"></div>
+      <div class="start-label">スタート</div>
+    </div>
+  </div>
+
+  <div class="game-footer">
+    <button class="reset-btn">リセット</button>
+  </div>
+</section>
+
+<!-- ======================== -->
+<!-- SCREEN 4: LEVEL 10       -->
+<!-- ======================== -->
+<section class="screen game-screen" id="screen-level10">
+  <div class="game-header">
+    <div class="level-badge">レベル 10</div>
+    <div class="stars">
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+      <div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <!-- goal -->
+    <div class="goal-zone">
+      <div class="goal-cup">
+        <div class="goal-cup-rim"></div>
+        <div class="goal-cup-body"></div>
+      </div>
+      <div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- static obstacles -->
+    <div class="obstacle">
+      <div class="obstacle-block" style="position:absolute; top: 22%; left: 5%; width: 70px; height: 24px;"></div>
+    </div>
+    <div class="obstacle">
+      <div class="obstacle-block" style="position:absolute; top: 22%; right: 5%; width: 70px; height: 24px;"></div>
+    </div>
+    <div class="obstacle">
+      <div class="obstacle-wall" style="position:absolute; top: 55%; left: 12%; width: 14px; height: 60px;"></div>
+    </div>
+    <div class="obstacle">
+      <div class="obstacle-block" style="position:absolute; top: 70%; left: 30%; width: 120px; height: 24px;"></div>
+    </div>
+
+    <!-- moving obstacle -->
+    <div class="moving-obstacle" style="top: 40%; left: 15%;">
+      <div class="moving-obstacle-body">
+        <span class="motion-arrows">&raquo;</span>
+      </div>
+    </div>
+
+    <!-- enemy -->
+    <div class="enemy" style="top: 56%; right: 18%;">
+      <div class="enemy-body" style="position:relative;">
+        <div class="enemy-eyes">
+          <div class="enemy-eye"></div>
+          <div class="enemy-eye"></div>
+        </div>
+        <div class="enemy-mouth"></div>
+        <div class="push-arrow push-arrow-1"></div>
+        <div class="push-arrow push-arrow-2"></div>
+      </div>
+      <div class="enemy-label">じゃまする！</div>
+    </div>
+
+    <!-- complex drawn path -->
+    <div class="drawn-path">
+      <svg viewBox="0 0 340 500" preserveAspectRatio="none">
+        <path class="path-line-border" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/>
+        <path class="path-line" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/>
+      </svg>
+    </div>
+
+    <!-- marble on start -->
+    <div class="game-marble" style="bottom: 24px; left: calc(50% - 18px);"></div>
+
+    <!-- start -->
+    <div class="start-zone">
+      <div class="start-platform"></div>
+      <div class="start-label">スタート</div>
+    </div>
+  </div>
+
+  <div class="game-footer">
+    <button class="reset-btn">リセット</button>
+  </div>
+</section>
+
+<!-- ======================== -->
+<!-- SCREEN 5: CLEAR          -->
+<!-- ======================== -->
+<section class="screen clear-screen" id="screen-clear">
+  <!-- sparkles -->
+  <div class="sparkle" style="top:10%; left:15%; background:#ffd93d; --dur:2.5s; --delay:0s;"></div>
+  <div class="sparkle" style="top:8%; right:20%; background:#ff9a9e; --dur:2s; --delay:0.3s;"></div>
+  <div class="sparkle" style="top:25%; left:8%; background:#78c4e8; --dur:3s; --delay:0.6s;"></div>
+  <div class="sparkle" style="top:20%; right:10%; background:#b8e8d0; --dur:2.2s; --delay:0.9s;"></div>
+  <div class="sparkle" style="bottom:30%; left:12%; background:#d4bfff; --dur:2.8s; --delay:0.2s;"></div>
+  <div class="sparkle" style="bottom:25%; right:15%; background:#ffd93d; --dur:1.8s; --delay:0.5s;"></div>
+  <div class="sparkle" style="top:40%; left:25%; background:#ffb5c2; --dur:2.4s; --delay:1.1s;"></div>
+  <div class="sparkle" style="top:45%; right:22%; background:#fff3b0; --dur:3.2s; --delay:0.7s;"></div>
+
+  <!-- confetti -->
+  <div class="confetti" style="left:10%; background:var(--coral); --dur:3.5s; --delay:0s;"></div>
+  <div class="confetti" style="left:25%; background:var(--baby-blue); --dur:4s; --delay:0.5s;"></div>
+  <div class="confetti" style="left:40%; background:var(--butter); --dur:3s; --delay:1s;"></div>
+  <div class="confetti" style="left:55%; background:var(--mint); --dur:3.8s; --delay:0.3s;"></div>
+  <div class="confetti" style="left:70%; background:var(--lavender); --dur:4.2s; --delay:0.8s;"></div>
+  <div class="confetti" style="left:85%; background:var(--pink); --dur:3.2s; --delay:1.2s;"></div>
+
+  <div class="clear-text">クリア！</div>
+
+  <div class="clear-stars">
+    <div class="clear-star">
+      <svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg>
+    </div>
+    <div class="clear-star">
+      <svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg>
+    </div>
+    <div class="clear-star">
+      <svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg>
+    </div>
+  </div>
+
+  <div class="clear-message">すごい！ かんぺき！</div>
+
+  <div class="clear-buttons">
+    <button class="next-btn">つぎへ</button>
+    <button class="retry-btn">もういちど</button>
+  </div>
+</section>
+
+<script>
+// Tab switching
+const tabs = document.querySelectorAll('.tab-btn');
+const screens = document.querySelectorAll('.screen');
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.dataset.screen;
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    screens.forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + target).classList.add('active');
+  });
+});
+
+// Play button -> level 1
+document.querySelector('.play-btn').addEventListener('click', () => {
+  tabs.forEach(t => t.classList.remove('active'));
+  tabs[1].classList.add('active');
+  screens.forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-level1').classList.add('active');
+});
+</script>
+
+</body>
+</html>

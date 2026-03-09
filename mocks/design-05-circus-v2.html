@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - サーカスランド v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#E74C3C;--gold:#F39C12;--blue:#2980B9;--white:#fff;--dark:#4a2020;--cream:#FFF8E1;--shadow:0 4px 16px rgba(74,32,32,0.12);--chunky:0 5px 0 rgba(74,32,32,0.2),0 7px 20px rgba(74,32,32,0.12)}
+html,body{font-family:'Hachi Maru Pop',cursive;background:var(--cream);color:var(--dark);overflow-x:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.tab-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;background:rgba(255,248,225,0.92);backdrop-filter:blur(12px);border-bottom:3px solid var(--red);overflow-x:auto;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 12px;font-family:inherit;font-size:11px;border:none;background:none;color:var(--dark);cursor:pointer;white-space:nowrap;position:relative}
+.tab-btn.active{color:var(--red)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:3px;background:var(--red);border-radius:3px 3px 0 0}
+.screen{display:none;min-height:100vh;min-height:100dvh;padding-top:44px}
+.screen.active{display:flex;flex-direction:column}
+
+.circus-bg{
+  background:
+    repeating-linear-gradient(90deg,rgba(231,76,60,0.06) 0px,rgba(231,76,60,0.06) 20px,transparent 20px,transparent 40px),
+    linear-gradient(180deg,var(--cream) 0%,#fff3e0 50%,var(--cream) 100%);
+  position:relative;overflow:hidden;
+}
+
+.title-screen{align-items:center;justify-content:center;gap:28px}
+.title-marble-wrap{width:110px;height:110px;animation:bounce 2s ease-in-out infinite;position:relative}
+.title-marble-wrap::after{content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70px;height:14px;background:radial-gradient(ellipse,rgba(74,32,32,0.15) 0%,transparent 70%);border-radius:50%}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-36px)}50%{transform:translateY(0)}60%{transform:translateY(-10px)}75%{transform:translateY(0)}}
+
+.marble-gold{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(200,150,0,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#FFD54F 0%,#FFC107 40%,#FF8F00 70%,#E65100 100%);box-shadow:inset -6px -6px 16px rgba(0,0,0,0.15),inset 3px 3px 8px rgba(255,255,255,0.3),0 6px 24px rgba(255,143,0,0.3);position:relative}
+.marble-gold::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(2px)}
+
+.title-text h1{font-size:32px;text-align:center;color:var(--red);text-shadow:2px 2px 0 var(--gold);line-height:1.3}
+.title-text p{font-size:13px;color:var(--dark);opacity:.6;text-align:center;margin-top:4px}
+.play-btn{font-family:inherit;font-size:24px;color:#fff;background:linear-gradient(135deg,var(--red),#C0392B);border:none;border-radius:50px;padding:16px 56px;box-shadow:var(--chunky);cursor:pointer;letter-spacing:3px}
+.play-btn:active{transform:translateY(3px)}
+
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0}
+.level-badge{background:#fff;border-radius:20px;padding:5px 16px;font-size:14px;box-shadow:var(--shadow);color:var(--dark)}
+.stars{display:flex;gap:3px}
+.star svg{width:26px;height:26px}
+.star-empty{fill:#f0d0c0}
+.star-filled{fill:#FFD93D;filter:drop-shadow(0 1px 2px rgba(255,200,0,0.4))}
+
+.game-area{flex:1;margin:6px 14px;background:#fff;border-radius:22px;box-shadow:var(--shadow);position:relative;overflow:hidden;min-height:0}
+.game-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(231,76,60,0.04) 1px,transparent 1px);background-size:22px 22px}
+
+/* gravity arrow indicator */
+.gravity-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:20;opacity:.25;display:flex;flex-direction:column;align-items:center;gap:2px}
+.gravity-arrow .arrow-body{width:3px;height:32px;background:var(--dark);border-radius:2px}
+.gravity-arrow .arrow-head{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid var(--dark)}
+.gravity-arrow .arrow-label{font-size:8px;color:var(--dark);margin-top:2px}
+
+/* goal zone - variable position */
+.goal-zone{position:absolute;text-align:center;z-index:12}
+.goal-ring{width:60px;height:44px;margin:0 auto;border:5px solid var(--gold);border-radius:50%;background:rgba(243,156,18,0.1);box-shadow:0 0 12px rgba(243,156,18,0.3)}
+.goal-label{font-size:10px;color:var(--dark);margin-top:4px;opacity:.5;letter-spacing:2px}
+
+/* start zone - variable position */
+.start-zone{position:absolute;text-align:center;z-index:12}
+.start-platform{width:60px;height:16px;background:linear-gradient(135deg,var(--gold),#E67E22);border-radius:10px;margin:0 auto;box-shadow:0 3px 0 #D35400}
+.start-label{font-size:10px;color:var(--dark);margin-top:4px;opacity:.5;letter-spacing:2px}
+
+/* marble (game) */
+.gm{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(200,150,0,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#FFD54F 0%,#FFC107 40%,#FF8F00 70%,#E65100 100%);box-shadow:inset -3px -3px 8px rgba(0,0,0,0.15),inset 2px 2px 4px rgba(255,255,255,0.3),0 3px 10px rgba(255,143,0,0.3);position:absolute;z-index:10}
+.gm::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(1px)}
+
+/* bouncing marble animation - drops and bounces */
+.gm-dropping{animation:marble-drop 2.5s ease-in infinite}
+@keyframes marble-drop{
+  0%{transform:translateY(0)}
+  20%{transform:translateY(60px)}
+  30%{transform:translateY(45px)}
+  40%{transform:translateY(60px)}
+  50%{transform:translateY(52px)}
+  55%{transform:translateY(60px)}
+  100%{transform:translateY(60px)}
+}
+.gm-rolling{animation:marble-roll 3s linear infinite}
+@keyframes marble-roll{
+  0%{transform:translateX(0) rotate(0deg)}
+  100%{transform:translateX(40px) rotate(360deg)}
+}
+
+/* drawn path - now horizontal shelves/slopes */
+.drawn-path{position:absolute;inset:0;z-index:5}
+.drawn-path svg{width:100%;height:100%}
+.path-line{fill:none;stroke:var(--gold);stroke-width:8;stroke-linecap:round;stroke-linejoin:round;opacity:.5;filter:drop-shadow(0 2px 4px rgba(243,156,18,0.2))}
+.path-border{fill:none;stroke:rgba(243,156,18,0.2);stroke-width:12;stroke-linecap:round;stroke-linejoin:round}
+
+/* platform shelf - player drawn */
+.shelf{position:absolute;z-index:6;height:6px;background:linear-gradient(90deg,rgba(243,156,18,0.3),rgba(243,156,18,0.6),rgba(243,156,18,0.3));border-radius:3px;box-shadow:0 2px 4px rgba(243,156,18,0.15)}
+.shelf-solid{background:linear-gradient(90deg,var(--gold),#E67E22);opacity:.6}
+
+/* slope indicator */
+.slope{position:absolute;z-index:6;height:6px;border-radius:3px;box-shadow:0 2px 4px rgba(243,156,18,0.15)}
+.slope-right{background:linear-gradient(2deg,rgba(243,156,18,0.3) 0%,rgba(243,156,18,0.6) 100%);transform-origin:left center}
+.slope-left{background:linear-gradient(-2deg,rgba(243,156,18,0.6) 0%,rgba(243,156,18,0.3) 100%);transform-origin:right center}
+
+/* fixed platform */
+.platform{position:absolute;z-index:7;height:10px;background:linear-gradient(180deg,#D4A574,#C49A6C);border-radius:5px;box-shadow:0 3px 0 #A0785A,0 4px 8px rgba(0,0,0,0.1)}
+
+/* trampoline - bounce pad */
+.trampoline{position:absolute;z-index:8;text-align:center}
+.trampoline-body{width:60px;height:12px;background:linear-gradient(180deg,var(--red),#C0392B);border-radius:0 0 50% 50%;box-shadow:0 3px 0 #922B21;position:relative}
+.trampoline-body::before,.trampoline-body::after{content:'';position:absolute;bottom:0;width:4px;height:18px;background:var(--dark);border-radius:2px}
+.trampoline-body::before{left:4px}
+.trampoline-body::after{right:4px}
+.trampoline-label{font-size:8px;color:var(--red);margin-top:12px;opacity:.6}
+.trampoline-spring{animation:spring-bounce .8s ease-in-out infinite}
+@keyframes spring-bounce{0%,100%{transform:scaleY(1)}50%{transform:scaleY(0.7)}}
+
+/* drum obstacle */
+.drum{position:absolute;z-index:8;border-radius:8px;background:linear-gradient(180deg,var(--red),#C0392B);box-shadow:0 3px 0 #922B21;border:2px solid #E74C3C}
+.drum::before{content:'';position:absolute;top:0;left:0;right:0;height:6px;background:var(--gold);border-radius:6px 6px 0 0}
+
+/* clown enemy */
+.clown{position:absolute;z-index:9;animation:clownwobble 2s ease-in-out infinite}
+@keyframes clownwobble{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+.clown-body{width:36px;height:40px;position:relative}
+.clown-head{width:30px;height:28px;background:linear-gradient(135deg,#FDEBD0,#FAD7A0);border-radius:50%;position:absolute;top:0;left:3px;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+.clown-nose{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:10px;height:10px;background:var(--red);border-radius:50%;z-index:2}
+.clown-hat{position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:14px solid var(--blue);z-index:1}
+.clown-hat::after{content:'';position:absolute;top:-4px;left:-3px;width:6px;height:6px;background:var(--gold);border-radius:50%}
+.clown-eyes{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.clown-eye{width:5px;height:5px;background:#333;border-radius:50%}
+.clown-bowtie{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:16px;height:8px;background:var(--gold);border-radius:2px;animation:bowspin 2s linear infinite}
+@keyframes bowspin{0%{transform:translateX(-50%) rotate(0)}100%{transform:translateX(-50%) rotate(360deg)}}
+.clown-label{font-size:8px;text-align:center;color:var(--red);margin-top:2px}
+
+/* clown patrol animation (horizontal) */
+.clown-patrol{animation:clown-lr 3s ease-in-out infinite}
+@keyframes clown-lr{0%,100%{transform:translateX(0)}50%{transform:translateX(40px)}}
+
+/* ringmaster boss */
+.ringmaster{position:absolute;z-index:9;animation:rmbounce 1.5s ease-in-out infinite}
+@keyframes rmbounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.rm-body{width:60px;height:65px;position:relative}
+.rm-head{width:40px;height:36px;background:linear-gradient(135deg,#FDEBD0,#FAD7A0);border-radius:50%;position:absolute;top:0;left:10px;box-shadow:0 3px 8px rgba(0,0,0,0.1)}
+.rm-hat{position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:36px;height:24px;background:var(--dark);border-radius:4px 4px 0 0}
+.rm-hat::before{content:'';position:absolute;bottom:-3px;left:-6px;right:-6px;height:6px;background:var(--dark);border-radius:3px}
+.rm-hat::after{content:'';position:absolute;bottom:6px;left:4px;right:4px;height:4px;background:var(--gold);border-radius:2px}
+.rm-eyes{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.rm-eye{width:6px;height:7px;background:#333;border-radius:50%}
+.rm-mustache{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:20px;height:6px;border-bottom:3px solid #5D4037;border-radius:50%}
+.rm-cape{position:absolute;bottom:0;left:5px;width:50px;height:30px;background:linear-gradient(135deg,var(--red),#C0392B);border-radius:0 0 20px 20px;box-shadow:0 3px 8px rgba(0,0,0,0.15)}
+
+/* spinning platform */
+.spin-platform{position:absolute;z-index:8;animation:platrot 4s linear infinite}
+@keyframes platrot{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+.spin-platform-body{width:50px;height:12px;background:linear-gradient(90deg,var(--blue),var(--red));border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+
+/* spotlight */
+.spotlight{position:absolute;top:0;left:50%;transform:translateX(-50%);width:100%;height:100%;background:radial-gradient(ellipse at 50% 20%,rgba(255,215,0,0.08) 0%,transparent 60%);pointer-events:none;z-index:1}
+
+.hint-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--dark);opacity:.25;pointer-events:none;text-align:center;line-height:1.8;z-index:1}
+.finger-dot{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(243,156,18,0.4);background:rgba(243,156,18,0.15);z-index:20;animation:fpulse 1.5s ease-in-out infinite}
+@keyframes fpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:.3}}
+
+/* finger draw hint animation */
+.finger-draw{animation:finger-draw-h 3s ease-in-out infinite}
+@keyframes finger-draw-h{
+  0%{left:20%;top:38%;opacity:.7}
+  50%{left:65%;top:38%;opacity:.9}
+  100%{left:20%;top:38%;opacity:.7}
+}
+
+.game-footer{padding:10px 16px 22px;display:flex;justify-content:center;flex-shrink:0}
+.reset-btn{font-family:inherit;font-size:14px;color:var(--dark);background:#fff;border:3px solid #f0d0c0;border-radius:14px;padding:10px 28px;cursor:pointer;box-shadow:0 3px 0 #f0d0c0}
+.reset-btn:active{transform:translateY(2px)}
+.hurry{position:absolute;top:8px;right:8px;background:rgba(231,76,60,0.15);border-radius:12px;padding:4px 10px;font-size:10px;color:var(--red);animation:hpulse 1s ease-in-out infinite;z-index:15}
+@keyframes hpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.05)}}
+
+/* bounce trail effect */
+.bounce-trail{position:absolute;z-index:4;opacity:.15}
+.bounce-trail circle{fill:var(--gold)}
+
+/* motion arrows on marble */
+.motion-hint{position:absolute;z-index:11;pointer-events:none}
+.motion-hint-x{width:24px;height:2px;background:var(--gold);border-radius:1px;opacity:.4;position:absolute;top:50%;transform:translateY(-50%)}
+.motion-hint-x::after{content:'';position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid var(--gold)}
+.motion-hint-y{width:2px;height:18px;background:var(--dark);border-radius:1px;opacity:.25;position:absolute;left:50%;transform:translateX(-50%)}
+.motion-hint-y::after{content:'';position:absolute;bottom:-4px;left:-3px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid var(--dark)}
+
+@keyframes obs-move-h{0%,100%{transform:translateX(0)}50%{transform:translateX(60px)}}
+@keyframes obs-move-v{0%,100%{transform:translateY(0)}50%{transform:translateY(40px)}}
+
+.clear-screen{align-items:center;justify-content:center;gap:22px}
+.clear-text{font-size:48px;color:var(--red);text-shadow:3px 3px 0 var(--gold);letter-spacing:5px}
+.clear-stars{display:flex;gap:10px}
+.clear-star{width:52px;height:52px;animation:starspin 1.5s ease-in-out infinite}
+.clear-star:nth-child(2){animation-delay:.15s}
+.clear-star:nth-child(3){animation-delay:.3s}
+@keyframes starspin{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(10deg) scale(1.1)}75%{transform:rotate(-10deg) scale(1.05)}}
+.clear-star svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(255,200,0,0.4))}
+.clear-msg{font-size:16px;color:var(--dark);opacity:.6}
+.clear-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px}
+.next-btn{font-family:inherit;font-size:20px;color:#fff;background:linear-gradient(135deg,var(--blue),#1F618D);border:none;border-radius:18px;padding:14px 0;box-shadow:0 4px 0 #154360;cursor:pointer;letter-spacing:3px}
+.next-btn:active{transform:translateY(3px)}
+.retry-btn{font-family:inherit;font-size:14px;color:var(--dark);background:#fff;border:3px solid #f0d0c0;border-radius:14px;padding:12px 0;cursor:pointer;box-shadow:0 3px 0 #f0d0c0}
+.retry-btn:active{transform:translateY(2px)}
+.confetti{position:absolute;width:7px;height:11px;border-radius:2px;animation:cfall var(--dur,3s) linear infinite var(--delay,0s);opacity:.7}
+@keyframes cfall{0%{transform:translateY(-20px) rotate(0);opacity:0}10%{opacity:.7}90%{opacity:.7}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+/* physics explanation overlay */
+.physics-note{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--dark);opacity:.2;white-space:nowrap;z-index:20;pointer-events:none}
+</style>
+</head>
+<body>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="lv1">Lv.1</button>
+  <button class="tab-btn" data-screen="lv5">Lv.5</button>
+  <button class="tab-btn" data-screen="lv10">Lv.10</button>
+  <button class="tab-btn" data-screen="lv15">Lv.15</button>
+  <button class="tab-btn" data-screen="lv20">Lv.20</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<!-- ===== TITLE ===== -->
+<section class="screen title-screen circus-bg active" id="screen-title">
+  <div class="title-marble-wrap"><div class="marble-gold"></div></div>
+  <div class="title-text"><h1>ビー玉<br>ころころ</h1><p>サーカスで あそぼう！</p></div>
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<!-- ===== Lv.1 : simple - start top-left, goal bottom-right ===== -->
+<section class="screen game-screen circus-bg" id="screen-lv1">
+  <div class="game-header"><div class="level-badge">レベル 1</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="spotlight"></div>
+    <!-- gravity indicator -->
+    <div class="gravity-arrow"><div class="arrow-body"></div><div class="arrow-head"></div><div class="arrow-label">じゅうりょく</div></div>
+
+    <!-- start: top-left -->
+    <div class="start-zone" style="top:10px;left:14px">
+      <div class="start-platform"></div><div class="start-label">スタート</div>
+    </div>
+    <!-- marble at start -->
+    <div class="gm" style="top:6px;left:27px"></div>
+
+    <!-- goal: bottom-right -->
+    <div class="goal-zone" style="bottom:14px;right:14px">
+      <div class="goal-ring"></div><div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- hint: finger draws horizontal shelves -->
+    <div class="hint-label">ゆびで よこに なぞって<br>たなを つくろう</div>
+
+    <!-- example drawn shelves (player-drawn paths shown as horizontal/angled lines) -->
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none">
+      <!-- shelf 1: catches marble falling from start, slopes right -->
+      <path class="path-border" d="M30,120 Q100,125 200,140"/>
+      <path class="path-line" d="M30,120 Q100,125 200,140"/>
+      <!-- shelf 2: catches from shelf 1, slopes left -->
+      <path class="path-border" d="M280,230 Q200,235 120,260"/>
+      <path class="path-line" d="M280,230 Q200,235 120,260"/>
+      <!-- shelf 3: catches from shelf 2, slopes right to goal -->
+      <path class="path-border" d="M60,350 Q150,355 280,380"/>
+      <path class="path-line" d="M60,350 Q150,355 280,380"/>
+    </svg></div>
+
+    <!-- bounce trail dots showing marble path -->
+    <svg class="bounce-trail" viewBox="0 0 340 500" style="width:100%;height:100%">
+      <!-- falling from start -->
+      <circle cx="55" cy="60" r="3"/>
+      <circle cx="55" cy="80" r="4"/>
+      <circle cx="55" cy="100" r="5"/>
+      <!-- rolling on shelf 1 -->
+      <circle cx="80" cy="122" r="3"/>
+      <circle cx="120" cy="128" r="3"/>
+      <circle cx="160" cy="134" r="3"/>
+      <!-- falling from shelf 1 -->
+      <circle cx="200" cy="160" r="3"/>
+      <circle cx="205" cy="185" r="4"/>
+      <circle cx="210" cy="210" r="5"/>
+      <!-- rolling on shelf 2 -->
+      <circle cx="250" cy="233" r="3"/>
+      <circle cx="210" cy="240" r="3"/>
+      <circle cx="170" cy="250" r="3"/>
+      <!-- falling from shelf 2 -->
+      <circle cx="130" cy="280" r="3"/>
+      <circle cx="120" cy="310" r="4"/>
+      <circle cx="110" cy="335" r="5"/>
+      <!-- rolling on shelf 3 -->
+      <circle cx="130" cy="353" r="3"/>
+      <circle cx="180" cy="360" r="3"/>
+      <circle cx="240" cy="372" r="3"/>
+      <!-- falling to goal -->
+      <circle cx="280" cy="400" r="4"/>
+      <circle cx="285" cy="425" r="5"/>
+    </svg>
+
+    <div class="finger-dot finger-draw" style="left:20%;top:38%"></div>
+    <div class="physics-note">X=ころがる Y=おちる・はねる</div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- ===== Lv.5 : obstacles, start top-right, goal bottom-left ===== -->
+<section class="screen game-screen circus-bg" id="screen-lv5">
+  <div class="game-header"><div class="level-badge">レベル 5</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="spotlight"></div>
+    <div class="gravity-arrow"><div class="arrow-body"></div><div class="arrow-head"></div><div class="arrow-label">じゅうりょく</div></div>
+
+    <!-- start: top-right -->
+    <div class="start-zone" style="top:10px;right:14px">
+      <div class="start-platform"></div><div class="start-label">スタート</div>
+    </div>
+    <div class="gm" style="top:6px;right:27px"></div>
+
+    <!-- goal: bottom-left -->
+    <div class="goal-zone" style="bottom:14px;left:14px">
+      <div class="goal-ring"></div><div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- static drums as obstacles -->
+    <div class="drum" style="top:28%;left:30%;width:60px;height:22px"></div>
+    <div class="drum" style="top:50%;right:20%;width:50px;height:22px"></div>
+    <div class="drum" style="top:65%;left:15%;width:14px;height:50px"></div>
+
+    <!-- trampoline -->
+    <div class="trampoline" style="top:80%;left:calc(50% - 30px)">
+      <div class="trampoline-body trampoline-spring"></div>
+      <div class="trampoline-label">トランポリン</div>
+    </div>
+
+    <!-- player drawn shelves -->
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none">
+      <path class="path-border" d="M310,120 Q230,130 160,150"/>
+      <path class="path-line" d="M310,120 Q230,130 160,150"/>
+      <path class="path-border" d="M100,250 Q170,255 260,275"/>
+      <path class="path-line" d="M100,250 Q170,255 260,275"/>
+      <path class="path-border" d="M280,370 Q200,380 80,400"/>
+      <path class="path-line" d="M280,370 Q200,380 80,400"/>
+    </svg></div>
+
+    <div class="physics-note">X=ころがる Y=おちる・はねる</div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- ===== Lv.10 : moving obstacles + enemy, start top-center, goal bottom-right ===== -->
+<section class="screen game-screen circus-bg" id="screen-lv10">
+  <div class="game-header"><div class="level-badge">レベル 10</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="spotlight"></div>
+    <div class="gravity-arrow"><div class="arrow-body"></div><div class="arrow-head"></div><div class="arrow-label">じゅうりょく</div></div>
+
+    <!-- start: top-center -->
+    <div class="start-zone" style="top:10px;left:calc(50% - 30px)">
+      <div class="start-platform"></div><div class="start-label">スタート</div>
+    </div>
+    <div class="gm" style="top:6px;left:calc(50% - 17px)"></div>
+
+    <!-- goal: bottom-right -->
+    <div class="goal-zone" style="bottom:14px;right:20px">
+      <div class="goal-ring"></div><div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- static drums -->
+    <div class="drum" style="top:25%;left:8%;width:70px;height:22px"></div>
+    <div class="drum" style="top:55%;right:5%;width:14px;height:50px"></div>
+
+    <!-- moving drum (horizontal patrol) -->
+    <div style="position:absolute;top:42%;left:10%;z-index:8;animation:obs-move-h 3s ease-in-out infinite">
+      <div class="drum" style="position:relative;width:50px;height:20px"></div>
+    </div>
+
+    <!-- clown enemy patrolling horizontally -->
+    <div class="clown clown-patrol" style="top:65%;left:15%"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div><div class="clown-label">ピエロ！</div></div>
+
+    <!-- trampoline -->
+    <div class="trampoline" style="top:82%;right:50px">
+      <div class="trampoline-body trampoline-spring"></div>
+    </div>
+
+    <!-- player drawn shelves -->
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none">
+      <path class="path-border" d="M120,130 Q200,140 290,160"/>
+      <path class="path-line" d="M120,130 Q200,140 290,160"/>
+      <path class="path-border" d="M300,260 Q210,265 100,290"/>
+      <path class="path-line" d="M300,260 Q210,265 100,290"/>
+      <path class="path-border" d="M60,370 Q160,380 280,400"/>
+      <path class="path-line" d="M60,370 Q160,380 280,400"/>
+    </svg></div>
+
+    <div class="physics-note">X=ころがる Y=おちる・はねる</div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- ===== Lv.15 : 3 enemies + narrow corridors, start left-middle, goal right-bottom ===== -->
+<section class="screen game-screen circus-bg" id="screen-lv15">
+  <div class="game-header"><div class="level-badge">レベル 15</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="spotlight"></div>
+    <div class="gravity-arrow"><div class="arrow-body"></div><div class="arrow-head"></div><div class="arrow-label">じゅうりょく</div></div>
+
+    <!-- start: left-middle -->
+    <div class="start-zone" style="top:6%;left:14px">
+      <div class="start-platform"></div><div class="start-label">スタート</div>
+    </div>
+    <div class="gm" style="top:22px;left:27px"></div>
+
+    <!-- goal: right-bottom -->
+    <div class="goal-zone" style="bottom:14px;right:14px">
+      <div class="goal-ring"></div><div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- walls creating corridors -->
+    <div class="drum" style="top:20%;left:0;width:55%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="drum" style="top:20%;right:0;width:20%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="drum" style="top:40%;left:25%;width:10px;height:55px"></div>
+    <div class="drum" style="top:45%;left:0;width:22%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="drum" style="top:60%;right:0;width:55%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="drum" style="top:60%;left:0;width:20%;height:8px;border-radius:0 6px 6px 0"></div>
+
+    <!-- 3 clowns patrolling -->
+    <div class="clown clown-patrol" style="top:26%;left:60%"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div></div>
+    <div class="clown clown-patrol" style="top:48%;left:35%;animation-duration:2.5s"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div></div>
+    <div class="clown clown-patrol" style="top:72%;left:10%;animation-duration:3.5s"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div></div>
+
+    <!-- spinning platforms -->
+    <div class="spin-platform" style="top:32%;left:10%"><div class="spin-platform-body"></div></div>
+    <div class="spin-platform" style="top:52%;right:15%;animation-direction:reverse"><div class="spin-platform-body"></div></div>
+
+    <!-- trampolines -->
+    <div class="trampoline" style="top:38%;right:25px">
+      <div class="trampoline-body trampoline-spring"></div>
+    </div>
+
+    <!-- player drawn shelves -->
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none">
+      <path class="path-border" d="M30,80 Q120,90 220,105"/>
+      <path class="path-line" d="M30,80 Q120,90 220,105"/>
+      <path class="path-border" d="M240,180 Q180,190 90,210"/>
+      <path class="path-line" d="M240,180 Q180,190 90,210"/>
+      <path class="path-border" d="M80,310 Q170,320 290,345"/>
+      <path class="path-line" d="M80,310 Q170,320 290,345"/>
+      <path class="path-border" d="M200,410 Q240,420 300,440"/>
+      <path class="path-line" d="M200,410 Q240,420 300,440"/>
+    </svg></div>
+
+    <div class="physics-note">X=ころがる Y=おちる・はねる</div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- ===== Lv.20 : BOSS, start top-left, goal bottom-center ===== -->
+<section class="screen game-screen circus-bg" id="screen-lv20">
+  <div class="game-header"><div class="level-badge">レベル 20</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="spotlight"></div>
+    <div class="gravity-arrow"><div class="arrow-body"></div><div class="arrow-head"></div><div class="arrow-label">じゅうりょく</div></div>
+    <div class="hurry">いそげ！</div>
+
+    <!-- start: top-left -->
+    <div class="start-zone" style="top:10px;left:14px">
+      <div class="start-platform"></div><div class="start-label">スタート</div>
+    </div>
+    <div class="gm" style="top:6px;left:27px"></div>
+
+    <!-- goal: bottom-center -->
+    <div class="goal-zone" style="bottom:14px;left:calc(50% - 30px)">
+      <div class="goal-ring"></div><div class="goal-label">ゴール</div>
+    </div>
+
+    <!-- BOSS: ringmaster patrols horizontally near bottom -->
+    <div class="ringmaster" style="top:72%;left:calc(50% - 30px);animation:rm-patrol 4s ease-in-out infinite">
+      <div class="rm-body"><div class="rm-hat"></div><div class="rm-head"><div class="rm-eyes"><div class="rm-eye"></div><div class="rm-eye"></div></div><div class="rm-mustache"></div></div><div class="rm-cape"></div></div>
+    </div>
+
+    <!-- maze walls -->
+    <div class="drum" style="top:18%;left:0;width:65%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="drum" style="top:18%;right:0;width:15%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="drum" style="top:35%;right:0;width:60%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="drum" style="top:35%;left:0;width:18%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="drum" style="top:52%;left:10%;width:45%;height:8px"></div>
+    <div class="drum" style="top:52%;right:5%;width:20%;height:8px"></div>
+
+    <!-- moving drums -->
+    <div style="position:absolute;top:25%;left:70%;z-index:8;animation:obs-move-v 2.5s ease-in-out infinite">
+      <div class="drum" style="position:relative;width:14px;height:40px"></div>
+    </div>
+    <div style="position:absolute;top:42%;left:5%;z-index:8;animation:obs-move-h 3s ease-in-out infinite">
+      <div class="drum" style="position:relative;width:45px;height:18px"></div>
+    </div>
+
+    <!-- clowns -->
+    <div class="clown clown-patrol" style="top:26%;left:5%"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div></div>
+    <div class="clown clown-patrol" style="top:58%;right:28%;animation-duration:2s"><div class="clown-body"><div class="clown-hat"></div><div class="clown-head"><div class="clown-eyes"><div class="clown-eye"></div><div class="clown-eye"></div></div><div class="clown-nose"></div></div><div class="clown-bowtie"></div></div></div>
+
+    <!-- spinning platforms -->
+    <div class="spin-platform" style="top:44%;left:55%"><div class="spin-platform-body"></div></div>
+    <div class="spin-platform" style="top:65%;left:12%;animation-direction:reverse;animation-duration:3s"><div class="spin-platform-body"></div></div>
+
+    <!-- trampolines -->
+    <div class="trampoline" style="top:62%;right:18px">
+      <div class="trampoline-body trampoline-spring"></div>
+    </div>
+
+    <!-- player drawn shelves -->
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none">
+      <path class="path-border" d="M30,80 Q130,90 240,100"/>
+      <path class="path-line" d="M30,80 Q130,90 240,100"/>
+      <path class="path-border" d="M60,195 Q120,200 200,215"/>
+      <path class="path-line" d="M60,195 Q120,200 200,215"/>
+      <path class="path-border" d="M240,290 Q180,300 100,320"/>
+      <path class="path-line" d="M240,290 Q180,300 100,320"/>
+      <path class="path-border" d="M80,400 Q140,410 200,430"/>
+      <path class="path-line" d="M80,400 Q140,410 200,430"/>
+    </svg></div>
+
+    <div class="physics-note">X=ころがる Y=おちる・はねる</div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- ===== CLEAR ===== -->
+<section class="screen clear-screen circus-bg" id="screen-clear">
+  <div class="confetti" style="left:8%;background:var(--red);--dur:3.5s;--delay:0s"></div>
+  <div class="confetti" style="left:25%;background:var(--gold);--dur:4s;--delay:.5s"></div>
+  <div class="confetti" style="left:45%;background:var(--blue);--dur:3s;--delay:1s"></div>
+  <div class="confetti" style="left:65%;background:var(--red);--dur:3.8s;--delay:.3s"></div>
+  <div class="confetti" style="left:85%;background:var(--gold);--dur:4.2s;--delay:.8s"></div>
+  <div class="clear-text">クリア！</div>
+  <div class="clear-stars">
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+  </div>
+  <div class="clear-msg">すごい！ かんぺき！</div>
+  <div class="clear-buttons">
+    <button class="next-btn">つぎへ</button>
+    <button class="retry-btn">もういちど</button>
+  </div>
+</section>
+
+<script>
+const tabs=document.querySelectorAll('.tab-btn'),screens=document.querySelectorAll('.screen');
+tabs.forEach(t=>t.addEventListener('click',()=>{const s=t.dataset.screen;tabs.forEach(b=>b.classList.remove('active'));t.classList.add('active');screens.forEach(sc=>sc.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active')}));
+document.querySelector('.play-btn').addEventListener('click',()=>{tabs.forEach(b=>b.classList.remove('active'));tabs[1].classList.add('active');screens.forEach(s=>s.classList.remove('active'));document.getElementById('screen-lv1').classList.add('active')});
+</script>
+<style>
+@keyframes rm-patrol{0%,100%{transform:translateX(-40px)}50%{transform:translateX(40px)}}
+</style>
+</body>
+</html>

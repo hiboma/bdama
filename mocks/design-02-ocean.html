@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - うみのぼうけん</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --deep:#1565C0;--aqua:#00BCD4;--seafoam:#B2DFDB;--sand:#FFE0B2;--coral:#FF7043;
+  --light:#e3f2fd;--dark:#1a3a5c;
+  --shadow:0 4px 16px rgba(21,101,192,0.15);
+  --chunky:0 5px 0 rgba(21,101,192,0.25),0 7px 20px rgba(21,101,192,0.15);
+}
+html,body{font-family:'M PLUS Rounded 1c',sans-serif;background:var(--light);color:var(--dark);overflow-x:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+.tab-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;background:rgba(227,242,253,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:3px solid var(--aqua);overflow-x:auto;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 12px;font-family:inherit;font-size:11px;font-weight:700;border:none;background:none;color:var(--dark);cursor:pointer;white-space:nowrap;position:relative}
+.tab-btn.active{color:var(--coral)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:3px;background:var(--coral);border-radius:3px 3px 0 0}
+
+.screen{display:none;min-height:100vh;min-height:100dvh;padding-top:44px}
+.screen.active{display:flex;flex-direction:column}
+
+.ocean-bg{
+  background:linear-gradient(180deg,#1565C0 0%,#1976D2 20%,#1E88E5 40%,#42A5F5 60%,#64B5F6 80%,#90CAF9 100%);
+  position:relative;overflow:hidden;
+}
+
+/* bubbles */
+.bubble{position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);animation:rise var(--dur,6s) ease-in infinite var(--delay,0s)}
+@keyframes rise{0%{transform:translateY(0) translateX(0);opacity:0}10%{opacity:.6}90%{opacity:.6}100%{transform:translateY(-100vh) translateX(20px);opacity:0}}
+
+/* Title */
+.title-screen{align-items:center;justify-content:center;gap:28px}
+.title-marble-wrap{width:110px;height:110px;animation:bounce 2s ease-in-out infinite;position:relative}
+.title-marble-wrap::after{content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70px;height:14px;background:radial-gradient(ellipse,rgba(0,0,0,0.15) 0%,transparent 70%);border-radius:50%;animation:shadp 2s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-36px)}50%{transform:translateY(0)}60%{transform:translateY(-10px)}75%{transform:translateY(0)}}
+@keyframes shadp{0%,100%{transform:translateX(-50%) scaleX(1);opacity:.6}30%{transform:translateX(-50%) scaleX(.5);opacity:.2}}
+
+.marble-aqua{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(0,150,136,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#4DD0E1 0%,#00ACC1 40%,#00838F 70%,#006064 100%);box-shadow:inset -6px -6px 16px rgba(0,0,0,0.15),inset 3px 3px 8px rgba(255,255,255,0.3),0 6px 24px rgba(0,150,136,0.35);position:relative}
+.marble-aqua::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(2px)}
+
+.title-text h1{font-size:34px;text-align:center;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.2);line-height:1.3}
+.title-text p{font-size:13px;color:rgba(255,255,255,0.8);text-align:center;margin-top:4px}
+.play-btn{font-family:inherit;font-size:26px;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--coral),#E64A19);border:none;border-radius:50px;padding:16px 56px;box-shadow:var(--chunky);cursor:pointer;letter-spacing:3px}
+.play-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(21,101,192,0.25)}
+
+/* seaweed deco */
+.seaweed{position:absolute;bottom:0;width:20px;height:80px;border-radius:10px 10px 0 0;animation:sway 3s ease-in-out infinite;transform-origin:bottom center}
+@keyframes sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+.sw1{left:5%;background:rgba(76,175,80,0.3);height:90px;animation-delay:0s}
+.sw2{left:12%;background:rgba(56,142,60,0.25);height:60px;animation-delay:.5s}
+.sw3{right:8%;background:rgba(76,175,80,0.3);height:75px;animation-delay:1s}
+.sw4{right:15%;background:rgba(56,142,60,0.25);height:55px;animation-delay:.3s}
+
+/* Game */
+.game-screen-ocean{position:relative;background:linear-gradient(180deg,#42A5F5 0%,#64B5F6 50%,#90CAF9 100%)}
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0}
+.level-badge{background:rgba(255,255,255,0.9);border-radius:20px;padding:5px 16px;font-weight:700;font-size:15px;box-shadow:var(--shadow);color:var(--dark)}
+.stars{display:flex;gap:3px}
+.star svg{width:26px;height:26px}
+.star-empty{fill:rgba(255,255,255,0.3)}
+.star-filled{fill:#FFD93D;filter:drop-shadow(0 1px 2px rgba(255,200,0,0.4))}
+
+.game-area{flex:1;margin:6px 14px;background:rgba(255,255,255,0.15);border-radius:22px;box-shadow:inset 0 0 0 3px rgba(255,255,255,0.1);position:relative;overflow:hidden;min-height:0;backdrop-filter:blur(4px)}
+.game-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,0.06) 1px,transparent 1px);background-size:22px 22px}
+
+.goal-zone{position:absolute;top:14px;left:50%;transform:translateX(-50%);text-align:center}
+.goal-cup-body{width:68px;height:44px;background:linear-gradient(135deg,var(--sand),#FFCC80);border-radius:8px 8px 18px 18px;box-shadow:inset -3px -3px 6px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.1);border:3px solid #FFB74D;margin:0 auto}
+.goal-cup-rim{width:76px;height:11px;background:linear-gradient(135deg,#FFCC80,#FFB74D);border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid #FFA726;margin:0 auto}
+.goal-label{font-size:10px;font-weight:700;color:#fff;margin-top:4px;opacity:.7;letter-spacing:2px}
+
+.start-zone{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
+.start-platform{width:76px;height:18px;background:linear-gradient(135deg,var(--seafoam),#80CBC4);border-radius:12px;margin:0 auto;box-shadow:0 3px 0 #4DB6AC,0 5px 10px rgba(0,150,136,0.2)}
+.start-label{font-size:10px;font-weight:700;color:#fff;margin-top:6px;opacity:.7;letter-spacing:2px}
+
+.gm{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(0,150,136,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#4DD0E1 0%,#00ACC1 40%,#00838F 70%,#006064 100%);box-shadow:inset -3px -3px 8px rgba(0,0,0,0.15),inset 2px 2px 4px rgba(255,255,255,0.3),0 3px 10px rgba(0,150,136,0.3);position:absolute;z-index:10}
+.gm::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(1px)}
+
+.drawn-path{position:absolute;inset:0;z-index:5}
+.drawn-path svg{width:100%;height:100%}
+.path-line{fill:none;stroke:var(--sand);stroke-width:14;stroke-linecap:round;stroke-linejoin:round;opacity:.7;filter:drop-shadow(0 2px 4px rgba(255,183,77,0.3))}
+.path-border{fill:none;stroke:#ffe0b2;stroke-width:18;stroke-linecap:round;stroke-linejoin:round;opacity:.4}
+
+/* coral reef obstacles */
+.reef{position:absolute;z-index:8;border-radius:12px 12px 6px 6px}
+.reef-coral{background:linear-gradient(135deg,#FF8A65,var(--coral));box-shadow:0 3px 0 #E64A19,0 4px 10px rgba(230,74,25,0.2);border:2px solid #F4511E}
+.reef-rock{background:linear-gradient(135deg,#90A4AE,#78909C);box-shadow:0 3px 0 #546E7A,0 4px 10px rgba(84,110,122,0.2);border:2px solid #607D8B}
+
+/* jellyfish enemy */
+.jelly{position:absolute;z-index:9;animation:jellybob 2.5s ease-in-out infinite}
+@keyframes jellybob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.jelly-body{width:38px;height:28px;background:linear-gradient(135deg,rgba(206,147,216,0.8),rgba(171,71,188,0.8));border-radius:50% 50% 30% 30%;position:relative;box-shadow:0 3px 8px rgba(171,71,188,0.3)}
+.jelly-eyes{position:absolute;top:35%;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.jelly-eye{width:6px;height:7px;background:#fff;border-radius:50%;position:relative}
+.jelly-eye::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:#4a148c;border-radius:50%}
+.jelly-tentacles{display:flex;gap:4px;justify-content:center;margin-top:-2px}
+.jelly-t{width:3px;height:14px;background:rgba(171,71,188,0.5);border-radius:0 0 3px 3px;animation:twiggle 1.5s ease-in-out infinite}
+.jelly-t:nth-child(2){animation-delay:.2s;height:18px}
+.jelly-t:nth-child(3){animation-delay:.4s;height:12px}
+@keyframes twiggle{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+.jelly-label{font-size:8px;text-align:center;color:rgba(255,255,255,0.7);font-weight:700;margin-top:2px}
+
+/* pufferfish */
+.puffer{position:absolute;z-index:9;animation:puffbob 2s ease-in-out infinite}
+@keyframes puffbob{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.puffer-body{width:36px;height:32px;background:linear-gradient(135deg,#FFCC80,#FFA726);border-radius:50%;position:relative;box-shadow:0 3px 8px rgba(255,167,38,0.3)}
+.puffer-eyes{position:absolute;top:30%;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+.puffer-eye{width:7px;height:8px;background:#fff;border-radius:50%;position:relative}
+.puffer-eye::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:#3E2723;border-radius:50%}
+.puffer-mouth{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);width:8px;height:8px;border:2px solid #3E2723;border-radius:50%}
+/* spines */
+.puffer-body::before{content:'';position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:4px;height:6px;background:#FFA726;border-radius:50%;box-shadow:-8px 2px 0 #FFA726,8px 2px 0 #FFA726,-5px -1px 0 #FFA726,5px -1px 0 #FFA726}
+
+/* octopus boss */
+.octo{position:absolute;z-index:9;animation:octobob 2s ease-in-out infinite}
+@keyframes octobob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.octo-body{width:70px;height:50px;background:linear-gradient(135deg,#E91E63,#C2185B);border-radius:50% 50% 40% 40%;position:relative;box-shadow:0 4px 12px rgba(194,24,91,0.3)}
+.octo-eyes{position:absolute;top:28%;left:50%;transform:translateX(-50%);display:flex;gap:16px}
+.octo-eye{width:12px;height:14px;background:#fff;border-radius:50%;position:relative}
+.octo-eye::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:7px;height:7px;background:#1a1a2e;border-radius:50%}
+.octo-mouth{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);width:14px;height:7px;border:2px solid #fff;border-top:none;border-radius:0 0 8px 8px}
+.octo-tentacles{display:flex;gap:3px;justify-content:center;margin-top:-4px}
+.octo-arm{width:6px;height:22px;background:rgba(194,24,91,0.7);border-radius:0 0 6px 6px;animation:armwave var(--d,1.5s) ease-in-out infinite var(--dl,0s)}
+@keyframes armwave{0%,100%{transform:rotate(-8deg) scaleY(1)}50%{transform:rotate(8deg) scaleY(0.9)}}
+
+/* whirlpool */
+.whirlpool{position:absolute;z-index:8;width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,0.3);animation:spin 2s linear infinite}
+.whirlpool::before{content:'';position:absolute;inset:6px;border-radius:50%;border:2px solid rgba(255,255,255,0.2)}
+.whirlpool::after{content:'';position:absolute;inset:12px;border-radius:50%;border:2px solid rgba(255,255,255,0.15)}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+
+/* current arrows */
+.current{position:absolute;z-index:6;color:rgba(255,255,255,0.25);font-size:18px;animation:cflow 2s linear infinite}
+@keyframes cflow{0%{opacity:0;transform:translateY(0)}50%{opacity:.4}100%{opacity:0;transform:translateY(-30px)}}
+
+/* moving fish */
+.fish-school{position:absolute;z-index:7;animation:fishswim 4s linear infinite}
+@keyframes fishswim{0%{transform:translateX(-60px)}100%{transform:translateX(calc(100% + 60px))}}
+.fish{width:20px;height:10px;background:var(--sand);border-radius:50% 0 50% 50%;position:relative;display:inline-block;margin:0 4px}
+.fish::after{content:'';position:absolute;right:-6px;top:1px;border:5px solid transparent;border-left:6px solid var(--sand)}
+
+.hint-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:#fff;opacity:.3;pointer-events:none;text-align:center;line-height:1.8;z-index:1}
+.finger-dot{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,224,178,0.5);background:rgba(255,224,178,0.2);z-index:20;animation:fpulse 1.5s ease-in-out infinite}
+@keyframes fpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:.3}}
+
+.game-footer{padding:10px 16px 22px;display:flex;justify-content:center;flex-shrink:0}
+.reset-btn{font-family:inherit;font-size:15px;font-weight:700;color:#fff;background:rgba(255,255,255,0.15);border:3px solid rgba(255,255,255,0.3);border-radius:14px;padding:10px 28px;cursor:pointer;box-shadow:0 3px 0 rgba(255,255,255,0.1);backdrop-filter:blur(4px)}
+.reset-btn:active{transform:translateY(2px)}
+
+/* Clear */
+.clear-screen{align-items:center;justify-content:center;gap:22px}
+.clear-text{font-size:48px;font-weight:900;color:#fff;text-shadow:0 3px 12px rgba(0,0,0,0.2);letter-spacing:5px;animation:glow 2s ease-in-out infinite}
+@keyframes glow{0%,100%{text-shadow:0 3px 12px rgba(0,0,0,0.2)}50%{text-shadow:0 3px 20px rgba(255,255,255,0.3)}}
+.clear-stars{display:flex;gap:10px}
+.clear-star{width:52px;height:52px;animation:starspin 1.5s ease-in-out infinite}
+.clear-star:nth-child(2){animation-delay:.15s}
+.clear-star:nth-child(3){animation-delay:.3s}
+@keyframes starspin{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(10deg) scale(1.1)}75%{transform:rotate(-10deg) scale(1.05)}}
+.clear-star svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(255,200,0,0.4))}
+.clear-msg{font-size:16px;font-weight:700;color:rgba(255,255,255,0.8)}
+.clear-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px}
+.next-btn{font-family:inherit;font-size:20px;font-weight:900;color:var(--dark);background:linear-gradient(135deg,var(--sand),#FFCC80);border:none;border-radius:18px;padding:14px 0;box-shadow:0 4px 0 #FFA726,0 6px 16px rgba(255,167,38,0.3);cursor:pointer;letter-spacing:3px}
+.next-btn:active{transform:translateY(3px)}
+.retry-btn{font-family:inherit;font-size:14px;font-weight:700;color:#fff;background:rgba(255,255,255,0.15);border:3px solid rgba(255,255,255,0.3);border-radius:14px;padding:12px 0;cursor:pointer;backdrop-filter:blur(4px)}
+.retry-btn:active{transform:translateY(2px)}
+
+.sparkle{position:absolute;width:8px;height:8px;border-radius:50%;animation:sp var(--dur,2s) ease-in-out infinite var(--delay,0s)}
+@keyframes sp{0%,100%{opacity:0;transform:scale(0)}20%{opacity:1;transform:scale(1)}80%{opacity:1;transform:scale(1)}}
+.confetti-b{position:absolute;width:6px;height:6px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);animation:rise 4s ease-in infinite var(--delay,0s)}
+
+.hurry{position:absolute;top:8px;right:8px;background:rgba(255,112,67,0.3);border-radius:12px;padding:4px 10px;font-size:10px;font-weight:700;color:#fff;animation:hpulse 1s ease-in-out infinite;z-index:15;backdrop-filter:blur(4px)}
+@keyframes hpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.05)}}
+</style>
+</head>
+<body>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="lv1">Lv.1</button>
+  <button class="tab-btn" data-screen="lv5">Lv.5</button>
+  <button class="tab-btn" data-screen="lv10">Lv.10</button>
+  <button class="tab-btn" data-screen="lv15">Lv.15</button>
+  <button class="tab-btn" data-screen="lv20">Lv.20</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<!-- TITLE -->
+<section class="screen title-screen ocean-bg active" id="screen-title">
+  <div class="bubble" style="left:10%;bottom:10%;width:12px;height:12px;--dur:5s;--delay:0s"></div>
+  <div class="bubble" style="left:30%;bottom:5%;width:8px;height:8px;--dur:7s;--delay:1s"></div>
+  <div class="bubble" style="left:60%;bottom:15%;width:14px;height:14px;--dur:6s;--delay:.5s"></div>
+  <div class="bubble" style="left:80%;bottom:8%;width:10px;height:10px;--dur:8s;--delay:2s"></div>
+  <div class="bubble" style="left:45%;bottom:20%;width:6px;height:6px;--dur:4s;--delay:1.5s"></div>
+  <div class="seaweed sw1"></div><div class="seaweed sw2"></div><div class="seaweed sw3"></div><div class="seaweed sw4"></div>
+  <div class="title-marble-wrap"><div class="marble-aqua"></div></div>
+  <div class="title-text"><h1>ビー玉<br>ころころ</h1><p>うみの なかを ぼうけん！</p></div>
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<!-- LV1 -->
+<section class="screen game-screen-ocean" id="screen-lv1">
+  <div class="game-header"><div class="level-badge">レベル 1</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="hint-label">ゆびで なぞって<br>みちを つくろう</div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/><path class="path-line" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/></svg></div>
+    <div class="finger-dot" style="bottom:22%;left:42%"></div>
+    <div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV5 -->
+<section class="screen game-screen-ocean" id="screen-lv5">
+  <div class="game-header"><div class="level-badge">レベル 5</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="reef reef-coral" style="position:absolute;top:30%;left:8%;width:80px;height:26px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:48%;right:8%;width:90px;height:26px"></div>
+    <div class="reef reef-coral" style="position:absolute;top:36%;left:52%;width:14px;height:60px"></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/><path class="path-line" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/></svg></div>
+    <div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV10 -->
+<section class="screen game-screen-ocean" id="screen-lv10">
+  <div class="game-header"><div class="level-badge">レベル 10</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="reef reef-rock" style="position:absolute;top:22%;left:5%;width:60px;height:22px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:22%;right:5%;width:60px;height:22px"></div>
+    <div class="reef reef-coral" style="position:absolute;top:55%;left:10%;width:12px;height:50px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:68%;left:28%;width:100px;height:22px"></div>
+    <!-- moving pufferfish -->
+    <div class="puffer" style="top:40%;left:15%;animation:puffbob 2s ease-in-out infinite,fishswim 5s linear infinite"><div class="puffer-body"><div class="puffer-eyes"><div class="puffer-eye"></div><div class="puffer-eye"></div></div><div class="puffer-mouth"></div></div></div>
+    <!-- jellyfish enemy -->
+    <div class="jelly" style="top:54%;right:16%"><div class="jelly-body"><div class="jelly-eyes"><div class="jelly-eye"></div><div class="jelly-eye"></div></div></div><div class="jelly-tentacles"><div class="jelly-t"></div><div class="jelly-t"></div><div class="jelly-t"></div></div><div class="jelly-label">くらげ！</div></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/><path class="path-line" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/></svg></div>
+    <div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV15 -->
+<section class="screen game-screen-ocean" id="screen-lv15">
+  <div class="game-header"><div class="level-badge">レベル 15</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <!-- coral maze -->
+    <div class="reef reef-coral" style="position:absolute;top:18%;left:0;width:42%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="reef reef-coral" style="position:absolute;top:18%;right:0;width:28%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:35%;left:18%;width:10px;height:70px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:32%;right:22%;width:10px;height:70px"></div>
+    <div class="reef reef-coral" style="position:absolute;top:60%;left:0;width:38%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="reef reef-coral" style="position:absolute;top:60%;right:0;width:32%;height:8px;border-radius:6px 0 0 6px"></div>
+    <!-- jellyfish enemies -->
+    <div class="jelly" style="top:24%;left:46%"><div class="jelly-body"><div class="jelly-eyes"><div class="jelly-eye"></div><div class="jelly-eye"></div></div></div><div class="jelly-tentacles"><div class="jelly-t"></div><div class="jelly-t"></div><div class="jelly-t"></div></div></div>
+    <div class="jelly" style="top:42%;left:8%"><div class="jelly-body"><div class="jelly-eyes"><div class="jelly-eye"></div><div class="jelly-eye"></div></div></div><div class="jelly-tentacles"><div class="jelly-t"></div><div class="jelly-t"></div><div class="jelly-t"></div></div></div>
+    <div class="jelly" style="top:42%;right:8%"><div class="jelly-body"><div class="jelly-eyes"><div class="jelly-eye"></div><div class="jelly-eye"></div></div></div><div class="jelly-tentacles"><div class="jelly-t"></div><div class="jelly-t"></div><div class="jelly-t"></div></div></div>
+    <!-- current arrows -->
+    <div class="current" style="top:50%;left:48%">&#x2191;</div>
+    <div class="current" style="top:55%;left:52%;--delay:.5s">&#x2191;</div>
+    <div class="current" style="top:48%;left:44%;--delay:1s">&#x2191;</div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/><path class="path-line" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/></svg></div>
+    <div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV20 -->
+<section class="screen game-screen-ocean" id="screen-lv20">
+  <div class="game-header"><div class="level-badge">レベル 20</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="hurry">いそげ！</div>
+    <!-- octopus boss -->
+    <div class="octo" style="top:16%;left:calc(50% - 35px)"><div class="octo-body"><div class="octo-eyes"><div class="octo-eye"></div><div class="octo-eye"></div></div><div class="octo-mouth"></div></div><div class="octo-tentacles"><div class="octo-arm" style="--d:1.5s;--dl:0s"></div><div class="octo-arm" style="--d:1.8s;--dl:.2s"></div><div class="octo-arm" style="--d:1.3s;--dl:.4s"></div><div class="octo-arm" style="--d:1.6s;--dl:.1s"></div><div class="octo-arm" style="--d:1.4s;--dl:.3s"></div><div class="octo-arm" style="--d:1.7s;--dl:.5s"></div></div></div>
+    <!-- maze -->
+    <div class="reef reef-rock" style="position:absolute;top:38%;left:0;width:45%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="reef reef-rock" style="position:absolute;top:38%;right:0;width:25%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="reef reef-coral" style="position:absolute;top:45%;left:35%;width:10px;height:55px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:55%;left:15%;width:28%;height:8px"></div>
+    <div class="reef reef-rock" style="position:absolute;top:65%;right:8%;width:38%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="reef reef-coral" style="position:absolute;top:72%;left:8%;width:10px;height:45px"></div>
+    <!-- whirlpools -->
+    <div class="whirlpool" style="top:50%;right:20%"></div>
+    <div class="whirlpool" style="top:70%;left:42%"></div>
+    <!-- fish schools -->
+    <div class="fish-school" style="top:48%;left:0"><div class="fish"></div><div class="fish"></div><div class="fish"></div></div>
+    <div class="fish-school" style="top:62%;left:0;animation-delay:2s;animation-duration:5s"><div class="fish"></div><div class="fish"></div></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/><path class="path-line" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/></svg></div>
+    <div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- CLEAR -->
+<section class="screen clear-screen ocean-bg" id="screen-clear">
+  <div class="confetti-b" style="left:10%;bottom:10%;width:10px;height:10px;--delay:0s"></div>
+  <div class="confetti-b" style="left:30%;bottom:20%;width:8px;height:8px;--delay:.5s"></div>
+  <div class="confetti-b" style="left:50%;bottom:5%;width:12px;height:12px;--delay:1s"></div>
+  <div class="confetti-b" style="left:70%;bottom:15%;width:7px;height:7px;--delay:1.5s"></div>
+  <div class="confetti-b" style="left:85%;bottom:8%;width:9px;height:9px;--delay:2s"></div>
+  <div class="sparkle" style="top:10%;left:15%;background:#FFD93D;--dur:2.5s;--delay:0s"></div>
+  <div class="sparkle" style="top:8%;right:20%;background:var(--sand);--dur:2s;--delay:.3s"></div>
+  <div class="sparkle" style="top:25%;left:8%;background:var(--aqua);--dur:3s;--delay:.6s"></div>
+  <div class="sparkle" style="bottom:30%;right:12%;background:var(--coral);--dur:2.8s;--delay:.2s"></div>
+  <div class="clear-text">クリア！</div>
+  <div class="clear-stars">
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+  </div>
+  <div class="clear-msg">すごい！ かんぺき！</div>
+  <div class="clear-buttons">
+    <button class="next-btn">つぎへ</button>
+    <button class="retry-btn">もういちど</button>
+  </div>
+</section>
+
+<script>
+const tabs=document.querySelectorAll('.tab-btn'),screens=document.querySelectorAll('.screen');
+tabs.forEach(t=>t.addEventListener('click',()=>{const s=t.dataset.screen;tabs.forEach(b=>b.classList.remove('active'));t.classList.add('active');screens.forEach(sc=>sc.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active')}));
+document.querySelector('.play-btn').addEventListener('click',()=>{tabs.forEach(b=>b.classList.remove('active'));tabs[1].classList.add('active');screens.forEach(s=>s.classList.remove('active'));document.getElementById('screen-lv1').classList.add('active')});
+</script>
+</body>
+</html>

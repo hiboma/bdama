@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - ゆきのせかい</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--ice:#B3E5FC;--frost:#ECEFF1;--glacier:#4FC3F7;--aurora-g:#69F0AE;--aurora-p:#CE93D8;--dark:#37474F;--shadow:0 4px 16px rgba(55,71,79,0.12)}
+html,body{font-family:'Zen Maru Gothic',sans-serif;background:var(--frost);color:var(--dark);overflow-x:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.tab-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;background:rgba(236,239,241,0.92);backdrop-filter:blur(12px);border-bottom:2px solid var(--glacier);overflow-x:auto;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 12px;font-family:inherit;font-size:11px;font-weight:700;border:none;background:none;color:var(--dark);cursor:pointer;white-space:nowrap;position:relative}
+.tab-btn.active{color:var(--glacier)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:2px;background:var(--glacier);border-radius:2px 2px 0 0}
+.screen{display:none;min-height:100vh;min-height:100dvh;padding-top:44px}
+.screen.active{display:flex;flex-direction:column}
+.snow-bg{background:linear-gradient(180deg,#90CAF9 0%,var(--ice) 30%,var(--frost) 70%,#fff 100%);position:relative;overflow:hidden}
+
+/* snowflakes */
+.flake{position:absolute;width:var(--s,6px);height:var(--s,6px);background:#fff;border-radius:50%;opacity:.7;animation:snowfall var(--dur,6s) linear infinite var(--delay,0s);z-index:0}
+@keyframes snowfall{0%{transform:translateY(-10px) translateX(0);opacity:0}10%{opacity:.7}90%{opacity:.7}100%{transform:translateY(100vh) translateX(20px);opacity:0}}
+
+.title-screen{align-items:center;justify-content:center;gap:28px}
+.title-marble-wrap{width:110px;height:110px;animation:bounce 2s ease-in-out infinite;position:relative}
+.title-marble-wrap::after{content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70px;height:14px;background:radial-gradient(ellipse,rgba(55,71,79,0.1) 0%,transparent 70%);border-radius:50%}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-36px)}50%{transform:translateY(0)}60%{transform:translateY(-10px)}75%{transform:translateY(0)}}
+.marble-ice{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,0.95) 0%,transparent 35%),radial-gradient(circle at 70% 75%,rgba(79,195,247,0.3) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#E1F5FE 0%,var(--ice) 30%,var(--glacier) 60%,#0288D1 100%);box-shadow:inset -6px -6px 16px rgba(0,0,0,0.08),inset 3px 3px 8px rgba(255,255,255,0.5),0 0 24px rgba(79,195,247,0.3),0 6px 24px rgba(2,136,209,0.2);position:relative}
+.marble-ice::after{content:'';position:absolute;top:15%;left:22%;width:30%;height:22%;background:rgba(255,255,255,0.8);border-radius:50%;transform:rotate(-30deg);filter:blur(2px)}
+
+.title-text h1{font-size:34px;text-align:center;color:var(--dark);line-height:1.3;letter-spacing:2px}
+.title-text p{font-size:13px;color:var(--dark);opacity:.5;text-align:center;margin-top:4px}
+.play-btn{font-family:inherit;font-size:24px;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--glacier),#039BE5);border:none;border-radius:50px;padding:16px 56px;box-shadow:0 5px 0 #0277BD,0 7px 20px rgba(2,136,209,0.2);cursor:pointer;letter-spacing:3px}
+.play-btn:active{transform:translateY(3px)}
+
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0}
+.level-badge{background:#fff;border-radius:20px;padding:5px 16px;font-weight:700;font-size:15px;box-shadow:var(--shadow);color:var(--dark)}
+.stars{display:flex;gap:3px}
+.star svg{width:26px;height:26px}
+.star-empty{fill:#cfd8dc}
+.star-filled{fill:#FFD93D;filter:drop-shadow(0 1px 2px rgba(255,200,0,0.4))}
+.game-area{flex:1;margin:6px 14px;background:rgba(255,255,255,0.8);border-radius:22px;box-shadow:var(--shadow);position:relative;overflow:hidden;min-height:0}
+.game-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(79,195,247,0.04) 1px,transparent 1px);background-size:22px 22px}
+
+/* igloo goal */
+.goal-zone{position:absolute;top:10px;left:50%;transform:translateX(-50%);text-align:center}
+.igloo{width:56px;height:40px;margin:0 auto;position:relative}
+.igloo-body{width:56px;height:30px;background:linear-gradient(180deg,#fff,#E0E0E0);border-radius:50% 50% 0 0;position:absolute;bottom:0;box-shadow:inset -3px -3px 6px rgba(0,0,0,0.05),0 2px 6px rgba(0,0,0,0.1);border:2px solid #BDBDBD}
+.igloo-door{width:16px;height:18px;background:radial-gradient(ellipse,rgba(255,200,50,0.3) 0%,rgba(255,200,50,0.1) 70%);border-radius:50% 50% 0 0;position:absolute;bottom:0;left:50%;transform:translateX(-50%);border:2px solid #BDBDBD;border-bottom:none}
+.goal-label{font-size:10px;font-weight:700;color:var(--dark);margin-top:4px;opacity:.5;letter-spacing:2px}
+
+.start-zone{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
+.start-platform{width:76px;height:18px;background:linear-gradient(135deg,var(--aurora-g),#26A69A);border-radius:12px;margin:0 auto;box-shadow:0 3px 0 #00897B}
+.start-label{font-size:10px;font-weight:700;color:var(--dark);margin-top:6px;opacity:.5;letter-spacing:2px}
+
+.gm{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,0.95) 0%,transparent 35%),radial-gradient(circle at 70% 75%,rgba(79,195,247,0.3) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#E1F5FE 0%,var(--ice) 30%,var(--glacier) 60%,#0288D1 100%);box-shadow:inset -3px -3px 8px rgba(0,0,0,0.08),0 0 16px rgba(79,195,247,0.25),0 3px 10px rgba(2,136,209,0.2);position:absolute;z-index:10}
+.gm::after{content:'';position:absolute;top:15%;left:22%;width:30%;height:22%;background:rgba(255,255,255,0.8);border-radius:50%;transform:rotate(-30deg);filter:blur(1px)}
+
+.drawn-path{position:absolute;inset:0;z-index:5}
+.drawn-path svg{width:100%;height:100%}
+.path-line{fill:none;stroke:var(--glacier);stroke-width:14;stroke-linecap:round;stroke-linejoin:round;opacity:.4;filter:drop-shadow(0 0 4px rgba(79,195,247,0.3))}
+.path-border{fill:none;stroke:rgba(79,195,247,0.15);stroke-width:18;stroke-linecap:round;stroke-linejoin:round}
+
+/* ice block obstacles */
+.ice-block{position:absolute;z-index:8;border-radius:6px;background:linear-gradient(135deg,rgba(179,229,252,0.6),rgba(79,195,247,0.4));box-shadow:0 2px 0 rgba(2,136,209,0.2),inset 0 0 8px rgba(255,255,255,0.3);border:2px solid rgba(79,195,247,0.4);backdrop-filter:blur(2px)}
+/* snow mound */
+.mound{position:absolute;z-index:8;border-radius:50% 50% 0 0;background:linear-gradient(180deg,#fff,#E0E0E0);box-shadow:0 2px 6px rgba(0,0,0,0.08);border:2px solid #BDBDBD;border-bottom:none}
+
+/* penguin enemy */
+.penguin{position:absolute;z-index:9;animation:penguinslide 3s ease-in-out infinite}
+@keyframes penguinslide{0%,100%{transform:translateX(0)}50%{transform:translateX(20px)}}
+.penguin-body{width:28px;height:32px;background:linear-gradient(180deg,#37474F,#263238);border-radius:40% 40% 50% 50%;position:relative;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+.penguin-belly{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:16px;height:16px;background:#fff;border-radius:50%}
+.penguin-eyes{position:absolute;top:25%;left:50%;transform:translateX(-50%);display:flex;gap:5px}
+.penguin-eye{width:5px;height:5px;background:#fff;border-radius:50%;position:relative}
+.penguin-eye::after{content:'';position:absolute;bottom:0;left:1px;width:3px;height:3px;background:#000;border-radius:50%}
+.penguin-beak{position:absolute;top:45%;left:50%;transform:translateX(-50%);width:6px;height:4px;background:#FF8F00;border-radius:0 0 3px 3px}
+.penguin-label{font-size:8px;text-align:center;color:var(--dark);opacity:.6;margin-top:2px}
+
+/* snowman enemy */
+.snowman{position:absolute;z-index:9;animation:snowmanwob 2s ease-in-out infinite}
+@keyframes snowmanwob{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.snowman-body{width:32px;height:42px;position:relative}
+.snowman-head{width:22px;height:22px;background:#fff;border-radius:50%;position:absolute;top:0;left:5px;box-shadow:0 1px 4px rgba(0,0,0,0.1);border:1px solid #E0E0E0}
+.snowman-bottom{width:32px;height:26px;background:#fff;border-radius:50%;position:absolute;bottom:0;box-shadow:0 2px 6px rgba(0,0,0,0.1);border:1px solid #E0E0E0}
+.snowman-nose{position:absolute;top:10px;left:18px;width:8px;height:4px;background:#FF8F00;border-radius:0 3px 3px 0}
+.snowman-eyes-w{position:absolute;top:7px;left:9px;display:flex;gap:4px}
+.snowman-eye-w{width:3px;height:3px;background:#000;border-radius:50%}
+.snowman-hat{position:absolute;top:-8px;left:6px;width:18px;height:10px;background:var(--dark);border-radius:3px 3px 0 0}
+.snowman-hat::after{content:'';position:absolute;bottom:-2px;left:-3px;right:-3px;height:4px;background:var(--dark);border-radius:2px}
+
+/* yeti boss */
+.yeti{position:absolute;z-index:9;animation:yetibounce 1.5s ease-in-out infinite}
+@keyframes yetibounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.05)}}
+.yeti-body{width:65px;height:55px;background:linear-gradient(180deg,#fff,#E0E0E0);border-radius:45% 45% 50% 50%;position:relative;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:2px solid #BDBDBD}
+.yeti-eyes{position:absolute;top:30%;left:50%;transform:translateX(-50%);display:flex;gap:12px}
+.yeti-eye{width:10px;height:8px;background:var(--glacier);border-radius:50%;border:2px solid #0288D1}
+.yeti-mouth{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);width:16px;height:8px;border:3px solid #546E7A;border-top:none;border-radius:0 0 10px 10px}
+.yeti-horns{position:absolute;top:-6px;left:50%;transform:translateX(-50%);display:flex;gap:20px}
+.yeti-horn{width:8px;height:10px;background:#BDBDBD;clip-path:polygon(50% 0%,0% 100%,100% 100%);border-radius:2px}
+
+/* blizzard effect */
+.blizzard .flake{animation-duration:1.5s !important}
+
+.hint-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--dark);opacity:.2;pointer-events:none;text-align:center;line-height:1.8;z-index:1}
+.finger-dot{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(79,195,247,0.4);background:rgba(79,195,247,0.1);z-index:20;animation:fpulse 1.5s ease-in-out infinite}
+@keyframes fpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:.3}}
+.game-footer{padding:10px 16px 22px;display:flex;justify-content:center;flex-shrink:0}
+.reset-btn{font-family:inherit;font-size:14px;font-weight:700;color:var(--dark);background:#fff;border:2px solid #cfd8dc;border-radius:14px;padding:10px 28px;cursor:pointer;box-shadow:0 3px 0 #cfd8dc}
+.reset-btn:active{transform:translateY(2px)}
+.hurry{position:absolute;top:8px;right:8px;background:rgba(79,195,247,0.15);border-radius:12px;padding:4px 10px;font-size:10px;font-weight:700;color:var(--glacier);animation:hpulse 1s ease-in-out infinite;z-index:15}
+@keyframes hpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.05)}}
+
+.clear-screen{align-items:center;justify-content:center;gap:22px}
+.clear-text{font-size:48px;font-weight:900;color:var(--dark);letter-spacing:5px}
+.clear-stars{display:flex;gap:10px}
+.clear-star{width:52px;height:52px;animation:starspin 1.5s ease-in-out infinite}
+.clear-star:nth-child(2){animation-delay:.15s}
+.clear-star:nth-child(3){animation-delay:.3s}
+@keyframes starspin{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(10deg) scale(1.1)}75%{transform:rotate(-10deg) scale(1.05)}}
+.clear-star svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(255,200,0,0.4))}
+.clear-msg{font-size:16px;font-weight:700;color:var(--dark);opacity:.5}
+.clear-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px}
+.next-btn{font-family:inherit;font-size:20px;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--glacier),#039BE5);border:none;border-radius:18px;padding:14px 0;box-shadow:0 4px 0 #0277BD;cursor:pointer;letter-spacing:3px}
+.next-btn:active{transform:translateY(3px)}
+.retry-btn{font-family:inherit;font-size:14px;font-weight:700;color:var(--dark);background:#fff;border:2px solid #cfd8dc;border-radius:14px;padding:12px 0;cursor:pointer;box-shadow:0 3px 0 #cfd8dc}
+.retry-btn:active{transform:translateY(2px)}
+</style>
+</head>
+<body>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="lv1">Lv.1</button>
+  <button class="tab-btn" data-screen="lv5">Lv.5</button>
+  <button class="tab-btn" data-screen="lv10">Lv.10</button>
+  <button class="tab-btn" data-screen="lv15">Lv.15</button>
+  <button class="tab-btn" data-screen="lv20">Lv.20</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<section class="screen title-screen snow-bg active" id="screen-title">
+  <div class="flake" style="left:8%;--s:4px;--dur:5s;--delay:0s"></div><div class="flake" style="left:22%;--s:6px;--dur:7s;--delay:1s"></div><div class="flake" style="left:45%;--s:3px;--dur:4s;--delay:.5s"></div><div class="flake" style="left:65%;--s:5px;--dur:6s;--delay:2s"></div><div class="flake" style="left:85%;--s:4px;--dur:5.5s;--delay:1.5s"></div>
+  <div class="title-marble-wrap"><div class="marble-ice"></div></div>
+  <div class="title-text"><h1>ビー玉<br>ころころ</h1><p>ゆきの せかいを ぼうけん！</p></div>
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<section class="screen game-screen snow-bg" id="screen-lv1">
+  <div class="flake" style="left:15%;--s:4px;--dur:5s;--delay:0s"></div><div class="flake" style="left:70%;--s:5px;--dur:6s;--delay:1s"></div>
+  <div class="game-header"><div class="level-badge">レベル 1</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="igloo"><div class="igloo-body"><div class="igloo-door"></div></div></div><div class="goal-label">ゴール</div></div><div class="hint-label">ゆびで なぞって<br>みちを つくろう</div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/><path class="path-line" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/></svg></div><div class="finger-dot" style="bottom:22%;left:42%"></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen snow-bg" id="screen-lv5">
+  <div class="game-header"><div class="level-badge">レベル 5</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="igloo"><div class="igloo-body"><div class="igloo-door"></div></div></div><div class="goal-label">ゴール</div></div><div class="ice-block" style="top:30%;left:8%;width:70px;height:24px"></div><div class="mound" style="top:46%;right:8%;width:80px;height:30px"></div><div class="ice-block" style="top:38%;left:52%;width:12px;height:50px"></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/><path class="path-line" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen snow-bg" id="screen-lv10">
+  <div class="game-header"><div class="level-badge">レベル 10</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="igloo"><div class="igloo-body"><div class="igloo-door"></div></div></div><div class="goal-label">ゴール</div></div><div class="ice-block" style="top:22%;left:5%;width:50px;height:20px"></div><div class="ice-block" style="top:22%;right:5%;width:50px;height:20px"></div><div class="mound" style="top:65%;left:28%;width:90px;height:28px"></div><div style="position:absolute;top:40%;left:10%;z-index:8;animation:omove 3s ease-in-out infinite"><div class="ice-block" style="position:relative;width:40px;height:16px"></div></div><div class="penguin" style="top:52%;right:14%"><div class="penguin-body"><div class="penguin-belly"></div><div class="penguin-eyes"><div class="penguin-eye"></div><div class="penguin-eye"></div></div><div class="penguin-beak"></div></div><div class="penguin-label">ペンギン！</div></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/><path class="path-line" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+@keyframes omove{0%,100%{transform:translateX(0)}50%{transform:translateX(50px)}}
+
+<section class="screen game-screen snow-bg" id="screen-lv15">
+  <div class="flake" style="left:10%;--s:3px;--dur:4s;--delay:0s"></div><div class="flake" style="left:50%;--s:5px;--dur:5s;--delay:.5s"></div><div class="flake" style="left:80%;--s:4px;--dur:3.5s;--delay:1s"></div>
+  <div class="game-header"><div class="level-badge">レベル 15</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="igloo"><div class="igloo-body"><div class="igloo-door"></div></div></div><div class="goal-label">ゴール</div></div><div class="ice-block" style="top:18%;left:0;width:38%;height:8px"></div><div class="ice-block" style="top:18%;right:0;width:28%;height:8px"></div><div class="ice-block" style="top:35%;left:18%;width:8px;height:55px"></div><div class="ice-block" style="top:32%;right:22%;width:8px;height:55px"></div><div class="ice-block" style="top:56%;left:0;width:32%;height:8px"></div><div class="ice-block" style="top:56%;right:0;width:32%;height:8px"></div><div class="penguin" style="top:24%;left:44%"><div class="penguin-body"><div class="penguin-belly"></div><div class="penguin-eyes"><div class="penguin-eye"></div><div class="penguin-eye"></div></div><div class="penguin-beak"></div></div></div><div class="penguin" style="top:42%;left:6%"><div class="penguin-body"><div class="penguin-belly"></div><div class="penguin-eyes"><div class="penguin-eye"></div><div class="penguin-eye"></div></div><div class="penguin-beak"></div></div></div><div class="snowman" style="top:40%;right:6%"><div class="snowman-body"><div class="snowman-hat"></div><div class="snowman-head"><div class="snowman-eyes-w"><div class="snowman-eye-w"></div><div class="snowman-eye-w"></div></div><div class="snowman-nose"></div></div><div class="snowman-bottom"></div></div></div><div style="position:absolute;top:48%;left:30%;z-index:8;animation:omove 2.5s ease-in-out infinite"><div class="ice-block" style="position:relative;width:35px;height:14px"></div></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/><path class="path-line" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen snow-bg blizzard" id="screen-lv20">
+  <div class="flake" style="left:5%;--s:5px;--dur:2s;--delay:0s"></div><div class="flake" style="left:15%;--s:3px;--dur:1.5s;--delay:.2s"></div><div class="flake" style="left:30%;--s:6px;--dur:2.5s;--delay:.4s"></div><div class="flake" style="left:45%;--s:4px;--dur:1.8s;--delay:.1s"></div><div class="flake" style="left:60%;--s:5px;--dur:2s;--delay:.6s"></div><div class="flake" style="left:75%;--s:3px;--dur:1.5s;--delay:.3s"></div><div class="flake" style="left:90%;--s:4px;--dur:2.2s;--delay:.5s"></div>
+  <div class="game-header"><div class="level-badge">レベル 20</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="igloo"><div class="igloo-body"><div class="igloo-door"></div></div></div><div class="goal-label">ゴール</div></div><div class="hurry">ブリザード！</div><div class="yeti" style="top:14%;left:calc(50% - 33px)"><div class="yeti-body"><div class="yeti-horns"><div class="yeti-horn"></div><div class="yeti-horn"></div></div><div class="yeti-eyes"><div class="yeti-eye"></div><div class="yeti-eye"></div></div><div class="yeti-mouth"></div></div></div><div class="ice-block" style="top:36%;left:0;width:42%;height:8px"></div><div class="ice-block" style="top:36%;right:0;width:25%;height:8px"></div><div class="ice-block" style="top:44%;left:35%;width:8px;height:45px"></div><div class="ice-block" style="top:54%;left:15%;width:22%;height:8px"></div><div class="ice-block" style="top:64%;right:8%;width:32%;height:8px"></div><div class="ice-block" style="top:72%;left:8%;width:8px;height:38px"></div><div class="penguin" style="top:50%;right:16%"><div class="penguin-body"><div class="penguin-belly"></div><div class="penguin-eyes"><div class="penguin-eye"></div><div class="penguin-eye"></div></div><div class="penguin-beak"></div></div></div><div style="position:absolute;top:46%;left:48%;z-index:8;animation:omove 2s ease-in-out infinite"><div class="ice-block" style="position:relative;width:35px;height:14px"></div></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/><path class="path-line" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen clear-screen snow-bg" id="screen-clear">
+  <div class="flake" style="left:10%;--s:5px;--dur:4s;--delay:0s"></div><div class="flake" style="left:40%;--s:4px;--dur:5s;--delay:.5s"></div><div class="flake" style="left:75%;--s:6px;--dur:3.5s;--delay:1s"></div>
+  <div class="clear-text">クリア！</div>
+  <div class="clear-stars"><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div>
+  <div class="clear-msg">すごい！ かんぺき！</div>
+  <div class="clear-buttons"><button class="next-btn">つぎへ</button><button class="retry-btn">もういちど</button></div>
+</section>
+
+<script>
+const tabs=document.querySelectorAll('.tab-btn'),screens=document.querySelectorAll('.screen');
+tabs.forEach(t=>t.addEventListener('click',()=>{const s=t.dataset.screen;tabs.forEach(b=>b.classList.remove('active'));t.classList.add('active');screens.forEach(sc=>sc.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active')}));
+document.querySelector('.play-btn').addEventListener('click',()=>{tabs.forEach(b=>b.classList.remove('active'));tabs[1].classList.add('active');screens.forEach(s=>s.classList.remove('active'));document.getElementById('screen-lv1').classList.add('active')});
+</script>
+</body>
+</html>

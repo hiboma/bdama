@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - きょうりゅうランド</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rampart+One&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--jungle:#2E7D32;--volcanic:#FF6F00;--dino-p:#7B1FA2;--lava:#D32F2F;--tan:#D7CCC8;--dark:#3e2a1a;--shadow:0 4px 16px rgba(62,42,26,0.15)}
+html,body{font-family:'Rampart One',cursive;background:var(--tan);color:var(--dark);overflow-x:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.tab-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;background:rgba(215,204,200,0.92);backdrop-filter:blur(12px);border-bottom:3px solid var(--jungle);overflow-x:auto;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 12px;font-family:'Rampart One',cursive;font-size:11px;border:none;background:none;color:var(--dark);cursor:pointer;white-space:nowrap;position:relative}
+.tab-btn.active{color:var(--volcanic)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:3px;background:var(--volcanic);border-radius:3px 3px 0 0}
+.screen{display:none;min-height:100vh;min-height:100dvh;padding-top:44px}
+.screen.active{display:flex;flex-direction:column}
+.dino-bg{background:linear-gradient(180deg,#81C784 0%,#A5D6A7 25%,#C8E6C9 50%,var(--tan) 80%,#BCAAA4 100%);position:relative;overflow:hidden}
+/* volcano silhouette */
+.dino-bg::after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:200px;height:60px;background:linear-gradient(180deg,#795548 0%,transparent 100%);clip-path:polygon(30% 100%,50% 0%,70% 100%);opacity:.15;z-index:0}
+
+.title-screen{align-items:center;justify-content:center;gap:24px}
+.title-marble-wrap{width:110px;height:110px;animation:bounce 2s ease-in-out infinite;position:relative}
+.title-marble-wrap::after{content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70px;height:14px;background:radial-gradient(ellipse,rgba(62,42,26,0.15) 0%,transparent 70%);border-radius:50%}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-36px)}50%{transform:translateY(0)}60%{transform:translateY(-10px)}75%{transform:translateY(0)}}
+.marble-amber{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.85) 0%,transparent 35%),radial-gradient(circle at 65% 70%,rgba(200,120,0,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#FFB74D 0%,#FF9800 40%,#E65100 70%,#BF360C 100%);box-shadow:inset -6px -6px 16px rgba(0,0,0,0.15),inset 3px 3px 8px rgba(255,255,255,0.3),0 6px 24px rgba(230,81,0,0.3);position:relative}
+.marble-amber::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(2px)}
+
+.title-text h1{font-size:30px;text-align:center;color:var(--volcanic);text-shadow:2px 2px 0 rgba(0,0,0,0.1);line-height:1.3}
+.title-text p{font-size:13px;color:var(--dark);opacity:.5;text-align:center;margin-top:4px;font-family:sans-serif}
+.play-btn{font-family:inherit;font-size:22px;color:#fff;background:linear-gradient(135deg,var(--volcanic),#E65100);border:none;border-radius:50px;padding:16px 52px;box-shadow:0 5px 0 #BF360C,0 7px 20px rgba(191,54,12,0.2);cursor:pointer;letter-spacing:3px}
+.play-btn:active{transform:translateY(3px)}
+
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0}
+.level-badge{background:#fff;border-radius:20px;padding:5px 16px;font-size:14px;box-shadow:var(--shadow);color:var(--dark)}
+.stars{display:flex;gap:3px}
+.star svg{width:26px;height:26px}
+.star-empty{fill:#d7ccc8}
+.star-filled{fill:#FFD93D;filter:drop-shadow(0 1px 2px rgba(255,200,0,0.4))}
+.game-area{flex:1;margin:6px 14px;background:#fff;border-radius:22px;box-shadow:var(--shadow);position:relative;overflow:hidden;min-height:0}
+.game-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(46,125,50,0.04) 1px,transparent 1px);background-size:22px 22px}
+
+/* egg nest goal */
+.goal-zone{position:absolute;top:10px;left:50%;transform:translateX(-50%);text-align:center}
+.nest{width:60px;height:35px;margin:0 auto;position:relative}
+.nest-base{width:60px;height:20px;background:linear-gradient(180deg,#A1887F,#8D6E63);border-radius:50%;position:absolute;bottom:0;border:2px solid #795548}
+.nest-egg{width:18px;height:22px;background:linear-gradient(135deg,#FFF9C4,#FFF176);border-radius:50% 50% 50% 50%/60% 60% 40% 40%;position:absolute;bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.1);border:1px solid #FDD835}
+.nest-egg:nth-child(1){left:8px}
+.nest-egg:nth-child(2){left:22px;bottom:10px}
+.nest-egg:nth-child(3){left:36px}
+.goal-label{font-size:10px;color:var(--dark);margin-top:4px;opacity:.5;letter-spacing:2px;font-family:sans-serif}
+
+.start-zone{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
+.start-platform{width:76px;height:18px;background:linear-gradient(135deg,var(--jungle),#388E3C);border-radius:12px;margin:0 auto;box-shadow:0 3px 0 #1B5E20}
+.start-label{font-size:10px;color:var(--dark);margin-top:6px;opacity:.5;letter-spacing:2px;font-family:sans-serif}
+
+.gm{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.85) 0%,transparent 35%),radial-gradient(circle at 65% 70%,rgba(200,120,0,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#FFB74D 0%,#FF9800 40%,#E65100 70%,#BF360C 100%);box-shadow:inset -3px -3px 8px rgba(0,0,0,0.15),0 3px 10px rgba(230,81,0,0.3);position:absolute;z-index:10}
+.gm::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(1px)}
+
+.drawn-path{position:absolute;inset:0;z-index:5}
+.drawn-path svg{width:100%;height:100%}
+.path-line{fill:none;stroke:#A5D6A7;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;opacity:.5}
+.path-border{fill:none;stroke:rgba(165,214,167,0.2);stroke-width:18;stroke-linecap:round;stroke-linejoin:round}
+
+/* rock obstacles */
+.rock{position:absolute;z-index:8;border-radius:40% 50% 45% 55%;background:linear-gradient(135deg,#8D6E63,#6D4C41);box-shadow:0 3px 0 #4E342E;border:2px solid #795548}
+/* bone obstacles */
+.bone{position:absolute;z-index:8;border-radius:10px;background:linear-gradient(135deg,#EFEBE9,#D7CCC8);box-shadow:0 2px 0 #BCAAA4;border:2px solid #BCAAA4}
+
+/* baby T-rex */
+.trex{position:absolute;z-index:9;animation:trexwalk 2.5s ease-in-out infinite}
+@keyframes trexwalk{0%,100%{transform:translateX(0)}50%{transform:translateX(15px)}}
+.trex-body{width:36px;height:32px;background:linear-gradient(135deg,var(--jungle),#1B5E20);border-radius:40% 50% 40% 40%;position:relative;box-shadow:0 2px 6px rgba(27,94,32,0.2)}
+.trex-head{position:absolute;top:-4px;right:-8px;width:20px;height:18px;background:var(--jungle);border-radius:40% 50% 40% 40%}
+.trex-eye{position:absolute;top:3px;right:4px;width:5px;height:5px;background:#fff;border-radius:50%}
+.trex-eye::after{content:'';position:absolute;bottom:0;right:0;width:3px;height:3px;background:#1a1a1a;border-radius:50%}
+.trex-mouth{position:absolute;bottom:2px;right:2px;width:8px;height:3px;background:#BF360C;border-radius:0 3px 3px 0}
+/* tiny arms */
+.trex-arm{position:absolute;top:50%;right:12px;width:6px;height:4px;background:#388E3C;border-radius:3px}
+.trex-label{font-size:8px;text-align:center;color:var(--jungle);margin-top:2px;font-family:sans-serif}
+
+/* pterodactyl */
+.ptero{position:absolute;z-index:9;animation:pterfly 2s ease-in-out infinite}
+@keyframes pterfly{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.ptero-body{width:12px;height:10px;background:var(--dino-p);border-radius:50%;position:relative;margin:0 auto}
+.ptero-wing{position:absolute;top:0;width:20px;height:8px;background:rgba(123,31,162,0.6);border-radius:50% 50% 0 0;animation:wingflap .5s ease-in-out infinite}
+.ptero-wing-l{left:-18px;transform-origin:right center}
+.ptero-wing-r{right:-18px;transform-origin:left center}
+@keyframes wingflap{0%,100%{transform:rotate(0)}50%{transform:rotate(-15deg)}}
+.ptero-head{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:6px;height:8px;background:var(--dino-p);border-radius:50% 50% 0 0}
+.ptero-beak{position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:5px solid #E65100}
+
+/* T-rex boss */
+.trex-boss{position:absolute;z-index:9;animation:trexstomp 1s ease-in-out infinite}
+@keyframes trexstomp{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.02)}}
+.trex-boss-body{width:70px;height:58px;background:linear-gradient(135deg,var(--jungle),#1B5E20);border-radius:40% 50% 40% 40%;position:relative;box-shadow:0 4px 0 #0d3d12,0 6px 12px rgba(27,94,32,0.3)}
+.trex-boss-head{position:absolute;top:-8px;right:-14px;width:36px;height:30px;background:var(--jungle);border-radius:40% 50% 40% 40%}
+.trex-boss-eye{position:absolute;top:6px;right:8px;width:8px;height:8px;background:var(--volcanic);border-radius:50%;border:2px solid #fff}
+.trex-boss-mouth{position:absolute;bottom:4px;right:2px;width:16px;height:6px;background:#BF360C;border-radius:0 6px 6px 0}
+.trex-boss-arm{position:absolute;top:55%;right:20px;width:10px;height:6px;background:#388E3C;border-radius:3px}
+/* lava stream */
+.lava{position:absolute;z-index:7;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--lava),var(--volcanic),var(--lava));animation:lavaflow 2s linear infinite;box-shadow:0 0 8px rgba(211,47,47,0.3)}
+@keyframes lavaflow{0%{background-position:0 0}100%{background-position:60px 0}}
+/* quake */
+.quake{animation:shake .3s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+.quake-indicator{position:absolute;top:8px;right:8px;background:rgba(211,47,47,0.2);border-radius:12px;padding:4px 10px;font-size:10px;color:var(--lava);animation:hpulse 1s ease-in-out infinite;z-index:15;font-family:sans-serif}
+@keyframes hpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.05)}}
+
+.hint-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--dark);opacity:.2;pointer-events:none;text-align:center;line-height:1.8;z-index:1;font-family:sans-serif}
+.finger-dot{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(165,214,167,0.4);background:rgba(165,214,167,0.15);z-index:20;animation:fpulse 1.5s ease-in-out infinite}
+@keyframes fpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:.3}}
+.game-footer{padding:10px 16px 22px;display:flex;justify-content:center;flex-shrink:0}
+.reset-btn{font-family:sans-serif;font-size:14px;font-weight:700;color:var(--dark);background:#fff;border:3px solid #d7ccc8;border-radius:14px;padding:10px 28px;cursor:pointer;box-shadow:0 3px 0 #d7ccc8}
+.reset-btn:active{transform:translateY(2px)}
+
+.clear-screen{align-items:center;justify-content:center;gap:22px}
+.clear-text{font-size:46px;color:var(--volcanic);text-shadow:2px 2px 0 rgba(0,0,0,0.1);letter-spacing:5px}
+.clear-stars{display:flex;gap:10px}
+.clear-star{width:52px;height:52px;animation:starspin 1.5s ease-in-out infinite}
+.clear-star:nth-child(2){animation-delay:.15s}
+.clear-star:nth-child(3){animation-delay:.3s}
+@keyframes starspin{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(10deg) scale(1.1)}75%{transform:rotate(-10deg) scale(1.05)}}
+.clear-star svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(255,200,0,0.4))}
+.clear-msg{font-size:16px;color:var(--dark);opacity:.5;font-family:sans-serif}
+.clear-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px}
+.next-btn{font-family:inherit;font-size:20px;color:#fff;background:linear-gradient(135deg,var(--volcanic),#E65100);border:none;border-radius:18px;padding:14px 0;box-shadow:0 4px 0 #BF360C;cursor:pointer;letter-spacing:3px}
+.next-btn:active{transform:translateY(3px)}
+.retry-btn{font-family:sans-serif;font-size:14px;font-weight:700;color:var(--dark);background:#fff;border:3px solid #d7ccc8;border-radius:14px;padding:12px 0;cursor:pointer;box-shadow:0 3px 0 #d7ccc8}
+.retry-btn:active{transform:translateY(2px)}
+</style>
+</head>
+<body>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="lv1">Lv.1</button>
+  <button class="tab-btn" data-screen="lv5">Lv.5</button>
+  <button class="tab-btn" data-screen="lv10">Lv.10</button>
+  <button class="tab-btn" data-screen="lv15">Lv.15</button>
+  <button class="tab-btn" data-screen="lv20">Lv.20</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<section class="screen title-screen dino-bg active" id="screen-title">
+  <div class="title-marble-wrap"><div class="marble-amber"></div></div>
+  <div class="title-text"><h1>ビー玉<br>ころころ</h1><p>きょうりゅうの せかいへ！</p></div>
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<section class="screen game-screen dino-bg" id="screen-lv1">
+  <div class="game-header"><div class="level-badge">レベル 1</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="nest"><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-base"></div></div><div class="goal-label">ゴール</div></div><div class="hint-label">ゆびで なぞって<br>みちを つくろう</div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/><path class="path-line" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/></svg></div><div class="finger-dot" style="bottom:22%;left:42%"></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen dino-bg" id="screen-lv5">
+  <div class="game-header"><div class="level-badge">レベル 5</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="nest"><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-base"></div></div><div class="goal-label">ゴール</div></div><div class="rock" style="top:30%;left:8%;width:70px;height:26px"></div><div class="bone" style="top:50%;right:8%;width:80px;height:16px"></div><div class="rock" style="top:38%;left:52%;width:14px;height:50px"></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/><path class="path-line" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen dino-bg" id="screen-lv10">
+  <div class="game-header"><div class="level-badge">レベル 10</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="nest"><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-base"></div></div><div class="goal-label">ゴール</div></div><div class="rock" style="top:22%;left:5%;width:50px;height:20px"></div><div class="rock" style="top:22%;right:5%;width:50px;height:20px"></div><div class="bone" style="top:68%;left:28%;width:80px;height:14px"></div><div class="lava" style="top:42%;left:10%;width:60px"></div><div class="trex" style="top:52%;right:14%"><div class="trex-body"><div class="trex-head"><div class="trex-eye"></div><div class="trex-mouth"></div></div><div class="trex-arm"></div></div><div class="trex-label">ティラノ！</div></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/><path class="path-line" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen dino-bg" id="screen-lv15">
+  <div class="game-header"><div class="level-badge">レベル 15</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area"><div class="goal-zone"><div class="nest"><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-base"></div></div><div class="goal-label">ゴール</div></div><div class="rock" style="top:18%;left:0;width:38%;height:8px;border-radius:0 6px 6px 0"></div><div class="rock" style="top:18%;right:0;width:28%;height:8px;border-radius:6px 0 0 6px"></div><div class="rock" style="top:35%;left:18%;width:8px;height:55px"></div><div class="rock" style="top:32%;right:22%;width:8px;height:55px"></div><div class="rock" style="top:56%;left:0;width:32%;height:8px;border-radius:0 6px 6px 0"></div><div class="rock" style="top:56%;right:0;width:32%;height:8px;border-radius:6px 0 0 6px"></div><div class="trex" style="top:24%;left:44%"><div class="trex-body"><div class="trex-head"><div class="trex-eye"></div><div class="trex-mouth"></div></div><div class="trex-arm"></div></div></div><div class="trex" style="top:42%;left:6%"><div class="trex-body"><div class="trex-head"><div class="trex-eye"></div><div class="trex-mouth"></div></div><div class="trex-arm"></div></div></div><div class="ptero" style="top:42%;right:10%"><div class="ptero-body"><div class="ptero-wing ptero-wing-l"></div><div class="ptero-wing ptero-wing-r"></div><div class="ptero-head"><div class="ptero-beak"></div></div></div></div><div class="lava" style="top:48%;left:30%;width:50px"></div><div class="lava" style="top:65%;right:15%;width:40px"></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/><path class="path-line" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen game-screen dino-bg" id="screen-lv20">
+  <div class="game-header"><div class="level-badge">レベル 20</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area quake"><div class="goal-zone"><div class="nest"><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-egg"></div><div class="nest-base"></div></div><div class="goal-label">ゴール</div></div><div class="quake-indicator">じしん！</div><div class="trex-boss" style="top:12%;left:calc(50% - 35px)"><div class="trex-boss-body"><div class="trex-boss-head"><div class="trex-boss-eye"></div><div class="trex-boss-mouth"></div></div><div class="trex-boss-arm"></div></div></div><div class="rock" style="top:36%;left:0;width:42%;height:8px;border-radius:0 6px 6px 0"></div><div class="rock" style="top:36%;right:0;width:25%;height:8px;border-radius:6px 0 0 6px"></div><div class="bone" style="top:44%;left:35%;width:8px;height:45px"></div><div class="rock" style="top:54%;left:15%;width:22%;height:8px"></div><div class="rock" style="top:64%;right:8%;width:32%;height:8px;border-radius:6px 0 0 6px"></div><div class="bone" style="top:72%;left:8%;width:8px;height:38px"></div><div class="lava" style="top:42%;left:50%;width:50px"></div><div class="lava" style="top:58%;left:5%;width:40px"></div><div class="lava" style="top:70%;right:20%;width:45px"></div><div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/><path class="path-line" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/></svg></div><div class="gm" style="bottom:22px;left:calc(50% - 17px)"></div><div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div></div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<section class="screen clear-screen dino-bg" id="screen-clear">
+  <div class="clear-text">クリア！</div>
+  <div class="clear-stars"><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div>
+  <div class="clear-msg">すごい！ かんぺき！</div>
+  <div class="clear-buttons"><button class="next-btn">つぎへ</button><button class="retry-btn">もういちど</button></div>
+</section>
+
+<script>
+const tabs=document.querySelectorAll('.tab-btn'),screens=document.querySelectorAll('.screen');
+tabs.forEach(t=>t.addEventListener('click',()=>{const s=t.dataset.screen;tabs.forEach(b=>b.classList.remove('active'));t.classList.add('active');screens.forEach(sc=>sc.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active')}));
+document.querySelector('.play-btn').addEventListener('click',()=>{tabs.forEach(b=>b.classList.remove('active'));tabs[1].classList.add('active');screens.forEach(s=>s.classList.remove('active'));document.getElementById('screen-lv1').classList.add('active')});
+</script>
+</body>
+</html>

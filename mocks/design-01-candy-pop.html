@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ビー玉ころころ - キャンディポップ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --pink:#FF69B4;--bubblegum:#FFB6C1;--purple:#9B59B6;--yellow:#FFE66D;
+  --white:#fff;--dark:#6a3a6a;--bg:#fff0f6;
+  --shadow:0 4px 16px rgba(155,89,182,0.15);
+  --chunky:0 5px 0 rgba(155,89,182,0.25),0 7px 20px rgba(155,89,182,0.15);
+}
+html,body{font-family:'Kosugi Maru',sans-serif;background:var(--bg);color:var(--dark);overflow-x:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+
+.tab-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;background:rgba(255,240,246,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:3px solid var(--bubblegum);overflow-x:auto;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:12px 12px;font-family:inherit;font-size:11px;font-weight:700;border:none;background:none;color:var(--dark);cursor:pointer;white-space:nowrap;position:relative;transition:color 0.2s}
+.tab-btn.active{color:var(--pink)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:15%;right:15%;height:3px;background:var(--pink);border-radius:3px 3px 0 0}
+
+.screen{display:none;min-height:100vh;min-height:100dvh;padding-top:44px}
+.screen.active{display:flex;flex-direction:column}
+
+/* polka dot bg */
+.candy-bg{
+  background:
+    radial-gradient(circle,rgba(255,105,180,0.08) 2px,transparent 2px),
+    radial-gradient(circle,rgba(155,89,182,0.06) 2px,transparent 2px),
+    linear-gradient(170deg,#fff0f6 0%,#fce4ec 40%,#f3e5f5 70%,#fff9c4 100%);
+  background-size:30px 30px,20px 20px,100% 100%;
+  background-position:0 0,15px 15px,0 0;
+}
+
+/* Title */
+.title-screen{align-items:center;justify-content:center;gap:28px;position:relative;overflow:hidden}
+.title-marble-wrap{width:110px;height:110px;animation:bounce 2s ease-in-out infinite;position:relative}
+.title-marble-wrap::after{content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);width:70px;height:14px;background:radial-gradient(ellipse,rgba(155,89,182,0.2) 0%,transparent 70%);border-radius:50%;animation:shadow-p 2s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-36px)}50%{transform:translateY(0)}60%{transform:translateY(-10px)}75%{transform:translateY(0)}}
+@keyframes shadow-p{0%,100%{transform:translateX(-50%) scaleX(1);opacity:.7}30%{transform:translateX(-50%) scaleX(.5);opacity:.3}50%{transform:translateX(-50%) scaleX(1);opacity:.7}}
+
+.marble-pink{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(200,100,180,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#ff8ec4 0%,#e05aa0 40%,#c0408a 70%,#a02070 100%);box-shadow:inset -6px -6px 16px rgba(0,0,0,0.15),inset 3px 3px 8px rgba(255,255,255,0.3),0 6px 24px rgba(200,80,150,0.35);position:relative}
+.marble-pink::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(2px)}
+
+.title-text h1{font-size:34px;text-align:center;background:linear-gradient(135deg,var(--pink),var(--purple),var(--yellow));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 2px 4px rgba(155,89,182,0.2));line-height:1.3}
+.title-text p{font-size:13px;color:var(--dark);opacity:.6;text-align:center;margin-top:4px}
+.play-btn{font-family:inherit;font-size:26px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:50px;padding:16px 56px;box-shadow:var(--chunky);cursor:pointer;letter-spacing:3px;transition:transform .1s}
+.play-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(155,89,182,0.25)}
+
+/* floating candy */
+.candy-deco{position:absolute;border-radius:50%;opacity:.4}
+.cd1{width:24px;height:24px;background:var(--yellow);top:15%;left:10%;animation:floatc 5s ease-in-out infinite}
+.cd2{width:16px;height:16px;background:var(--bubblegum);top:30%;right:8%;animation:floatc 7s ease-in-out infinite .5s}
+.cd3{width:20px;height:20px;background:var(--purple);bottom:20%;left:15%;animation:floatc 6s ease-in-out infinite 1s;opacity:.3}
+.cd4{width:14px;height:14px;background:var(--pink);bottom:30%;right:12%;animation:floatc 4s ease-in-out infinite .8s}
+@keyframes floatc{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-18px) scale(1.1)}}
+
+/* Game shared */
+.game-screen{position:relative}
+.game-header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0}
+.level-badge{background:#fff;border-radius:20px;padding:5px 16px;font-weight:700;font-size:15px;box-shadow:var(--shadow);color:var(--dark)}
+.stars{display:flex;gap:3px}
+.star svg{width:26px;height:26px}
+.star-empty{fill:#e8d0e0}
+.star-filled{fill:#FFD93D;filter:drop-shadow(0 1px 2px rgba(255,200,0,0.4))}
+
+.game-area{flex:1;margin:6px 14px;background:#fff;border-radius:22px;box-shadow:var(--shadow),inset 0 0 0 3px rgba(155,89,182,0.06);position:relative;overflow:hidden;min-height:0}
+.game-area::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,105,180,0.05) 1px,transparent 1px);background-size:22px 22px;background-position:11px 11px}
+
+.goal-zone{position:absolute;top:14px;left:50%;transform:translateX(-50%);text-align:center}
+.goal-cup-body{width:68px;height:44px;background:linear-gradient(135deg,var(--yellow),#ffd54f);border-radius:8px 8px 18px 18px;box-shadow:inset -3px -3px 6px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.1);border:3px solid #f0c030;margin:0 auto}
+.goal-cup-rim{width:76px;height:11px;background:linear-gradient(135deg,#ffe082,#ffd54f);border-radius:6px;box-shadow:0 2px 4px rgba(0,0,0,0.1);border:2px solid #f0c030;margin:0 auto 0}
+.goal-label{font-size:10px;font-weight:700;color:var(--dark);margin-top:4px;opacity:.5;letter-spacing:2px}
+
+.start-zone{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);text-align:center}
+.start-platform{width:76px;height:18px;background:linear-gradient(135deg,var(--bubblegum),var(--pink));border-radius:12px;margin:0 auto;box-shadow:0 3px 0 #d04a90,0 5px 10px rgba(200,70,150,0.2)}
+.start-label{font-size:10px;font-weight:700;color:var(--dark);margin-top:6px;opacity:.5;letter-spacing:2px}
+
+.game-marble-s{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,0.9) 0%,transparent 40%),radial-gradient(circle at 65% 70%,rgba(200,100,180,0.4) 0%,transparent 50%),radial-gradient(circle at 50% 50%,#ff8ec4 0%,#e05aa0 40%,#c0408a 70%,#a02070 100%);box-shadow:inset -3px -3px 8px rgba(0,0,0,0.15),inset 2px 2px 4px rgba(255,255,255,0.3),0 3px 10px rgba(200,80,150,0.3);position:absolute;z-index:10}
+.game-marble-s::after{content:'';position:absolute;top:18%;left:25%;width:28%;height:20%;background:rgba(255,255,255,0.7);border-radius:50%;transform:rotate(-30deg);filter:blur(1px)}
+
+.drawn-path{position:absolute;inset:0;z-index:5}
+.drawn-path svg{width:100%;height:100%}
+.path-line{fill:none;stroke:var(--bubblegum);stroke-width:14;stroke-linecap:round;stroke-linejoin:round;opacity:.7;filter:drop-shadow(0 2px 4px rgba(255,105,180,0.2))}
+.path-border{fill:none;stroke:#ffcce0;stroke-width:18;stroke-linecap:round;stroke-linejoin:round;opacity:.4}
+
+.obstacle-block{background:linear-gradient(135deg,#f8bbd0,#f48fb1);border-radius:10px;box-shadow:0 3px 0 #e07090,0 4px 10px rgba(200,80,120,0.2);border:2px solid #f06090;position:absolute;z-index:8}
+.obstacle-wall{background:linear-gradient(180deg,#ce93d8,#ab47bc);border-radius:8px;box-shadow:0 3px 0 #8e24aa,0 4px 10px rgba(140,40,170,0.2);border:2px solid #9c27b0;position:absolute;z-index:8}
+
+.moving-obs{position:absolute;z-index:8;animation:obs-move 3s ease-in-out infinite}
+@keyframes obs-move{0%,100%{transform:translateX(0)}50%{transform:translateX(55px)}}
+.moving-obs-body{width:48px;height:22px;background:linear-gradient(135deg,var(--yellow),#ffd54f);border-radius:11px;box-shadow:0 3px 0 #e0b030,0 4px 8px rgba(200,160,40,0.2);border:2px solid #e0b030;position:relative}
+.motion-arr{position:absolute;top:50%;right:-24px;transform:translateY(-50%);font-size:13px;color:#e0b030;opacity:.5;animation:arrfade 1.5s ease-in-out infinite}
+@keyframes arrfade{0%,100%{opacity:.2;transform:translateY(-50%) translateX(0)}50%{opacity:.7;transform:translateY(-50%) translateX(4px)}}
+
+.enemy{position:absolute;z-index:9;animation:ewobble 2s ease-in-out infinite}
+@keyframes ewobble{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+.enemy-body{width:38px;height:34px;background:linear-gradient(135deg,var(--purple),#7b1fa2);border-radius:50% 50% 45% 45%;position:relative;box-shadow:0 3px 0 #5a1080,0 4px 8px rgba(90,16,128,0.25)}
+.enemy-eyes{position:absolute;top:32%;left:50%;transform:translateX(-50%);display:flex;gap:7px}
+.enemy-eye{width:7px;height:9px;background:#fff;border-radius:50%;position:relative}
+.enemy-eye::after{content:'';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:#3a1050;border-radius:50%}
+.enemy-mouth{position:absolute;bottom:20%;left:50%;transform:translateX(-50%);width:10px;height:5px;border:2px solid #fff;border-top:none;border-radius:0 0 6px 6px}
+.enemy-label{font-size:8px;text-align:center;color:var(--purple);font-weight:700;margin-top:3px}
+.push-arrow{position:absolute;width:18px;height:2px;background:var(--purple);opacity:.4;border-radius:2px}
+.push-arrow::after{content:'';position:absolute;right:-1px;top:-3px;border:3px solid transparent;border-left-color:var(--purple)}
+.pa1{top:28%;right:-24px;animation:parr 1s ease-in-out infinite}
+.pa2{top:52%;right:-20px;animation:parr 1s ease-in-out infinite .3s}
+@keyframes parr{0%,100%{opacity:.15;transform:translateX(0)}50%{opacity:.6;transform:translateX(5px)}}
+
+/* boss */
+.boss{position:absolute;z-index:9;animation:boss-bounce 1.5s ease-in-out infinite}
+@keyframes boss-bounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.05)}}
+.boss-body{width:70px;height:64px;background:linear-gradient(135deg,var(--purple),#6a1b9a);border-radius:50% 50% 45% 45%;position:relative;box-shadow:0 4px 0 #4a0e6a,0 6px 12px rgba(90,16,128,0.3)}
+.boss-eyes{position:absolute;top:28%;left:50%;transform:translateX(-50%);display:flex;gap:14px}
+.boss-eye{width:12px;height:14px;background:#fff;border-radius:50%;position:relative}
+.boss-eye::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:7px;height:7px;background:#3a1050;border-radius:50%}
+.boss-mouth{position:absolute;bottom:18%;left:50%;transform:translateX(-50%);width:20px;height:10px;border:3px solid #fff;border-top:none;border-radius:0 0 10px 10px}
+.boss-crown{position:absolute;top:-14px;left:50%;transform:translateX(-50%);width:30px;height:16px;background:var(--yellow);clip-path:polygon(0% 100%,15% 0%,30% 60%,50% 0%,70% 60%,85% 0%,100% 100%)}
+
+/* hurry indicator */
+.hurry{position:absolute;top:8px;right:8px;background:rgba(255,105,180,0.15);border-radius:12px;padding:4px 10px;font-size:10px;font-weight:700;color:var(--pink);animation:hurry-pulse 1s ease-in-out infinite;z-index:15}
+@keyframes hurry-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.05)}}
+
+.hint-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--dark);opacity:.25;pointer-events:none;text-align:center;line-height:1.8;z-index:1}
+
+.game-footer{padding:10px 16px 22px;display:flex;justify-content:center;flex-shrink:0}
+.reset-btn{font-family:inherit;font-size:15px;font-weight:700;color:var(--dark);background:#fff;border:3px solid #f0d0e0;border-radius:14px;padding:10px 28px;cursor:pointer;box-shadow:0 3px 0 #f0d0e0;transition:transform .1s}
+.reset-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #f0d0e0}
+
+/* Clear */
+.clear-screen{align-items:center;justify-content:center;gap:22px;position:relative;overflow:hidden}
+.clear-text{font-size:48px;font-weight:700;background:linear-gradient(135deg,var(--pink),var(--purple),var(--yellow));background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gshift 3s ease-in-out infinite;letter-spacing:5px}
+@keyframes gshift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.clear-stars{display:flex;gap:10px}
+.clear-star{width:52px;height:52px;animation:starspin 1.5s ease-in-out infinite}
+.clear-star:nth-child(2){animation-delay:.15s}
+.clear-star:nth-child(3){animation-delay:.3s}
+@keyframes starspin{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(10deg) scale(1.1)}75%{transform:rotate(-10deg) scale(1.05)}}
+.clear-star svg{width:100%;height:100%;filter:drop-shadow(0 3px 8px rgba(255,200,0,0.4))}
+.clear-msg{font-size:16px;font-weight:700;color:var(--dark);opacity:.6}
+.clear-buttons{display:flex;flex-direction:column;gap:10px;width:100%;max-width:240px}
+.next-btn{font-family:inherit;font-size:20px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;border-radius:18px;padding:14px 0;box-shadow:0 4px 0 #7b1fa2,0 6px 16px rgba(155,89,182,0.3);cursor:pointer;letter-spacing:3px}
+.next-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #7b1fa2}
+.retry-btn{font-family:inherit;font-size:14px;font-weight:700;color:var(--dark);background:#fff;border:3px solid #f0d0e0;border-radius:14px;padding:12px 0;cursor:pointer;box-shadow:0 3px 0 #f0d0e0}
+.retry-btn:active{transform:translateY(2px);box-shadow:0 1px 0 #f0d0e0}
+
+.sparkle{position:absolute;width:8px;height:8px;border-radius:50%;animation:sp var(--dur,2s) ease-in-out infinite var(--delay,0s)}
+@keyframes sp{0%,100%{opacity:0;transform:scale(0) rotate(0)}20%{opacity:1;transform:scale(1) rotate(90deg)}80%{opacity:1;transform:scale(1) rotate(270deg)}}
+.sparkle::before,.sparkle::after{content:'';position:absolute;background:inherit;border-radius:inherit}
+.sparkle::before{width:100%;height:3px;top:50%;left:0;transform:translateY(-50%)}
+.sparkle::after{width:3px;height:100%;left:50%;top:0;transform:translateX(-50%)}
+.confetti{position:absolute;width:7px;height:11px;border-radius:2px;animation:cfall var(--dur,3s) linear infinite var(--delay,0s);opacity:.7}
+@keyframes cfall{0%{transform:translateY(-20px) rotate(0);opacity:0}10%{opacity:.7}90%{opacity:.7}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+/* finger dot */
+.finger-dot{position:absolute;width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,105,180,0.4);background:rgba(255,180,200,0.25);z-index:20;animation:fpulse 1.5s ease-in-out infinite}
+@keyframes fpulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:.3}}
+</style>
+</head>
+<body>
+<nav class="tab-nav">
+  <button class="tab-btn active" data-screen="title">タイトル</button>
+  <button class="tab-btn" data-screen="lv1">Lv.1</button>
+  <button class="tab-btn" data-screen="lv5">Lv.5</button>
+  <button class="tab-btn" data-screen="lv10">Lv.10</button>
+  <button class="tab-btn" data-screen="lv15">Lv.15</button>
+  <button class="tab-btn" data-screen="lv20">Lv.20</button>
+  <button class="tab-btn" data-screen="clear">クリア</button>
+</nav>
+
+<!-- TITLE -->
+<section class="screen title-screen candy-bg active" id="screen-title">
+  <div class="candy-deco cd1"></div><div class="candy-deco cd2"></div><div class="candy-deco cd3"></div><div class="candy-deco cd4"></div>
+  <div class="title-marble-wrap"><div class="marble-pink"></div></div>
+  <div class="title-text"><h1>ビー玉<br>ころころ</h1><p>ゆびで みちを つくろう！</p></div>
+  <button class="play-btn">あそぶ</button>
+</section>
+
+<!-- LV1 -->
+<section class="screen game-screen candy-bg" id="screen-lv1">
+  <div class="game-header"><div class="level-badge">レベル 1</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="hint-label">ゆびで なぞって<br>みちを つくろう</div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/><path class="path-line" d="M170,420 C170,380 140,340 160,300 C180,260 190,220 170,180 C155,150 170,110 170,90"/></svg></div>
+    <div class="finger-dot" style="bottom:22%;left:42%"></div>
+    <div class="game-marble-s" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV5 -->
+<section class="screen game-screen candy-bg" id="screen-lv5">
+  <div class="game-header"><div class="level-badge">レベル 5</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="obstacle-block" style="top:30%;left:8%;width:85px;height:26px"></div>
+    <div class="obstacle-block" style="top:48%;right:8%;width:95px;height:26px"></div>
+    <div class="obstacle-wall" style="top:35%;left:52%;width:14px;height:65px"></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/><path class="path-line" d="M170,420 C170,390 220,370 240,340 C260,310 260,280 220,260 C180,240 100,240 80,210 C60,180 100,150 140,130 C170,115 170,95 170,85"/></svg></div>
+    <div class="game-marble-s" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV10 -->
+<section class="screen game-screen candy-bg" id="screen-lv10">
+  <div class="game-header"><div class="level-badge">レベル 10</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="obstacle-block" style="top:22%;left:5%;width:65px;height:22px"></div>
+    <div class="obstacle-block" style="top:22%;right:5%;width:65px;height:22px"></div>
+    <div class="obstacle-wall" style="top:55%;left:10%;width:12px;height:55px"></div>
+    <div class="obstacle-block" style="top:68%;left:28%;width:110px;height:22px"></div>
+    <div class="moving-obs" style="top:40%;left:12%"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="enemy" style="top:54%;right:16%"><div class="enemy-body"><div class="enemy-eyes"><div class="enemy-eye"></div><div class="enemy-eye"></div></div><div class="enemy-mouth"></div><div class="push-arrow pa1"></div><div class="push-arrow pa2"></div></div><div class="enemy-label">じゃまする！</div></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/><path class="path-line" d="M170,430 C170,410 130,400 110,380 C80,350 70,320 100,290 C130,260 200,270 230,250 C260,230 270,200 240,180 C210,160 170,170 140,160 C110,150 100,130 120,110 C140,90 170,85 170,80"/></svg></div>
+    <div class="game-marble-s" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV15 -->
+<section class="screen game-screen candy-bg" id="screen-lv15">
+  <div class="game-header"><div class="level-badge">レベル 15</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <!-- narrow corridors -->
+    <div class="obstacle-wall" style="top:18%;left:0;width:40%;height:10px;border-radius:0 6px 6px 0"></div>
+    <div class="obstacle-wall" style="top:18%;right:0;width:30%;height:10px;border-radius:6px 0 0 6px"></div>
+    <div class="obstacle-block" style="top:32%;left:20%;width:12px;height:80px"></div>
+    <div class="obstacle-block" style="top:30%;right:25%;width:12px;height:80px"></div>
+    <div class="obstacle-wall" style="top:60%;left:0;width:35%;height:10px;border-radius:0 6px 6px 0"></div>
+    <div class="obstacle-wall" style="top:60%;right:0;width:35%;height:10px;border-radius:6px 0 0 6px"></div>
+    <!-- 3 enemies -->
+    <div class="enemy" style="top:24%;left:46%"><div class="enemy-body"><div class="enemy-eyes"><div class="enemy-eye"></div><div class="enemy-eye"></div></div><div class="enemy-mouth"></div></div></div>
+    <div class="enemy" style="top:44%;left:10%"><div class="enemy-body"><div class="enemy-eyes"><div class="enemy-eye"></div><div class="enemy-eye"></div></div><div class="enemy-mouth"></div></div></div>
+    <div class="enemy" style="top:44%;right:10%"><div class="enemy-body"><div class="enemy-eyes"><div class="enemy-eye"></div><div class="enemy-eye"></div></div><div class="enemy-mouth"></div></div></div>
+    <!-- 2 moving platforms -->
+    <div class="moving-obs" style="top:52%;left:5%"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="moving-obs" style="top:72%;left:40%;animation-direction:reverse"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/><path class="path-line" d="M170,430 C170,400 200,380 210,350 C220,320 180,310 170,280 C160,250 200,230 210,200 C220,170 180,150 170,130 C160,110 170,90 170,80"/></svg></div>
+    <div class="game-marble-s" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- LV20 -->
+<section class="screen game-screen candy-bg" id="screen-lv20">
+  <div class="game-header"><div class="level-badge">レベル 20</div><div class="stars"><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div><div class="star"><svg viewBox="0 0 24 24"><polygon class="star-empty" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div></div></div>
+  <div class="game-area">
+    <div class="goal-zone"><div class="goal-cup-rim"></div><div class="goal-cup-body"></div><div class="goal-label">ゴール</div></div>
+    <div class="hurry">いそげ！</div>
+    <!-- boss -->
+    <div class="boss" style="top:18%;left:calc(50% - 35px)"><div class="boss-body"><div class="boss-crown"></div><div class="boss-eyes"><div class="boss-eye"></div><div class="boss-eye"></div></div><div class="boss-mouth"></div></div></div>
+    <!-- maze walls -->
+    <div class="obstacle-wall" style="top:38%;left:0;width:45%;height:8px;border-radius:0 6px 6px 0"></div>
+    <div class="obstacle-wall" style="top:38%;right:0;width:25%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="obstacle-block" style="top:45%;left:35%;width:10px;height:60px"></div>
+    <div class="obstacle-wall" style="top:55%;left:15%;width:30%;height:8px"></div>
+    <div class="obstacle-wall" style="top:65%;right:10%;width:40%;height:8px;border-radius:6px 0 0 6px"></div>
+    <div class="obstacle-block" style="top:72%;left:10%;width:10px;height:50px"></div>
+    <!-- 3 moving obstacles -->
+    <div class="moving-obs" style="top:48%;left:50%"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="moving-obs" style="top:60%;left:0;animation-duration:2.5s"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="moving-obs" style="top:76%;left:30%;animation-duration:4s;animation-direction:reverse"><div class="moving-obs-body"><span class="motion-arr">&raquo;</span></div></div>
+    <div class="drawn-path"><svg viewBox="0 0 340 500" preserveAspectRatio="none"><path class="path-border" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/><path class="path-line" d="M170,430 C170,400 60,390 50,370 C40,350 80,340 100,320 C120,300 250,290 260,270 C270,250 200,240 170,230 C140,220 80,210 60,190 C40,170 100,155 140,145 C180,135 220,120 200,100 C180,85 170,80 170,75"/></svg></div>
+    <div class="game-marble-s" style="bottom:22px;left:calc(50% - 17px)"></div>
+    <div class="start-zone"><div class="start-platform"></div><div class="start-label">スタート</div></div>
+  </div>
+  <div class="game-footer"><button class="reset-btn">リセット</button></div>
+</section>
+
+<!-- CLEAR -->
+<section class="screen clear-screen candy-bg" id="screen-clear">
+  <div class="sparkle" style="top:10%;left:15%;background:#FFD93D;--dur:2.5s;--delay:0s"></div>
+  <div class="sparkle" style="top:8%;right:20%;background:var(--pink);--dur:2s;--delay:.3s"></div>
+  <div class="sparkle" style="top:25%;left:8%;background:var(--purple);--dur:3s;--delay:.6s"></div>
+  <div class="sparkle" style="bottom:30%;left:12%;background:var(--yellow);--dur:2.8s;--delay:.2s"></div>
+  <div class="sparkle" style="bottom:25%;right:15%;background:var(--bubblegum);--dur:1.8s;--delay:.5s"></div>
+  <div class="confetti" style="left:10%;background:var(--pink);--dur:3.5s;--delay:0s"></div>
+  <div class="confetti" style="left:30%;background:var(--purple);--dur:4s;--delay:.5s"></div>
+  <div class="confetti" style="left:50%;background:var(--yellow);--dur:3s;--delay:1s"></div>
+  <div class="confetti" style="left:70%;background:var(--bubblegum);--dur:3.8s;--delay:.3s"></div>
+  <div class="confetti" style="left:90%;background:var(--pink);--dur:4.2s;--delay:.8s"></div>
+  <div class="clear-text">クリア！</div>
+  <div class="clear-stars">
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+    <div class="clear-star"><svg viewBox="0 0 24 24"><polygon class="star-filled" points="12,2 15.1,8.3 22,9.2 17,14.1 18.2,21 12,17.7 5.8,21 7,14.1 2,9.2 8.9,8.3"/></svg></div>
+  </div>
+  <div class="clear-msg">すごい！ かんぺき！</div>
+  <div class="clear-buttons">
+    <button class="next-btn">つぎへ</button>
+    <button class="retry-btn">もういちど</button>
+  </div>
+</section>
+
+<script>
+const tabs=document.querySelectorAll('.tab-btn'),screens=document.querySelectorAll('.screen');
+tabs.forEach(t=>t.addEventListener('click',()=>{const s=t.dataset.screen;tabs.forEach(b=>b.classList.remove('active'));t.classList.add('active');screens.forEach(sc=>sc.classList.remove('active'));document.getElementById('screen-'+s).classList.add('active')}));
+document.querySelector('.play-btn').addEventListener('click',()=>{tabs.forEach(b=>b.classList.remove('active'));tabs[1].classList.add('active');screens.forEach(s=>s.classList.remove('active'));document.getElementById('screen-lv1').classList.add('active')});
+</script>
+</body>
+</html>
