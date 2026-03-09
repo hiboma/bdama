@@ -17,6 +17,12 @@ export interface TriangleData {
   size: number;
 }
 
+export interface CrossData {
+  x: number;
+  y: number;
+  size: number;
+}
+
 export interface LevelData {
   level: number;
   start: { x: number; y: number };
