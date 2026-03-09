@@ -1,0 +1,1150 @@
+import type { Shelf } from "../entities/Shelf";
+import type { GoalEffect, BreakEffect } from "./Game";
+
+const COLORS = {
+  red: "#E74C3C",
+  redDark: "#C0392B",
+  gold: "#F39C12",
+  goldLight: "#FFD93D",
+  blue: "#2980B9",
+  blueDark: "#1F6DA0",
+  green: "#27AE60",
+  cream: "#FFF8E1",
+  dark: "#4a2020",
+  white: "#ffffff",
+};
+
+// Rainbow marble color tones: [highlight, light, mid, dark]
+const MARBLE_TONES: [string, string, string, string][] = [
+  ["#FF8A80", "#F44336", "#D32F2F", "#B71C1C"], // Red
+  ["#FFCC80", "#FF9800", "#EF6C00", "#E65100"], // Orange
+  ["#FFE082", "#FFC107", "#FF8F00", "#E65100"], // Yellow
+  ["#C8E6C9", "#4CAF50", "#2E7D32", "#1B5E20"], // Green
+  ["#90CAF9", "#2196F3", "#1565C0", "#0D47A1"], // Blue
+  ["#B39DDB", "#7E57C2", "#512DA8", "#311B92"], // Indigo
+  ["#F48FB1", "#E91E63", "#C2185B", "#880E4F"], // Violet
+  ["#FFFFFF", "#F0F0F0", "#D8D8D8", "#B0B0B0"], // White
+];
+
+export class Renderer {
+  private ctx: CanvasRenderingContext2D;
+  private frame = 0;
+  pressedPoint: { x: number; y: number } | null = null;
+
+  constructor(ctx: CanvasRenderingContext2D) {
+    this.ctx = ctx;
+  }
+
+  private get t(): number {
+    return this.frame / 60;
+  }
+
+  drawBackground(w: number, h: number): void {
+    this.frame++;
+    const ctx = this.ctx;
+    ctx.fillStyle = COLORS.cream;
+    ctx.fillRect(0, 0, w, h);
+
+    // Circus tent stripes
+    ctx.globalAlpha = 0.04;
+    for (let x = 0; x < w; x += 40) {
+      ctx.fillStyle = COLORS.red;
+      ctx.fillRect(x, 0, 20, h);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  drawTitleScreen(w: number, h: number, speed = 0.4, restitution = 0.5): void {
+    const ctx = this.ctx;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Floating marble with gentle bounce
+    const bounce = Math.sin(this.t * 2) * 8;
+    this.drawMarble(cx, cy - 90 + bounce, 55);
+
+    // Title text with shadow
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "rgba(74,32,32,0.1)";
+    ctx.font = "34px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ビー玉", cx + 2, cy + 14);
+    ctx.fillText("ころころ", cx + 2, cy + 54);
+
+    ctx.fillStyle = COLORS.red;
+    ctx.font = "34px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ビー玉", cx, cy + 12);
+    ctx.fillText("ころころ", cx, cy + 52);
+
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.font = "13px 'Hachi Maru Pop', cursive";
+    ctx.fillText("サーカスで あそぼう！", cx, cy + 88);
+    ctx.globalAlpha = 1;
+
+    this.drawButton(cx, cy + 130, 200, 58, "あそぶ", COLORS.red, COLORS.white, "play");
+
+    // Settings: speed
+    const speedY = cy + 175;
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.font = "11px 'Hachi Maru Pop', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("はやさ", cx, speedY - 16);
+    ctx.globalAlpha = 1;
+
+    this.drawButton(cx - 80, speedY, 36, 36, "-", COLORS.white, COLORS.dark);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.dark;
+    ctx.font = "15px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`x${speed.toFixed(1)}`, cx, speedY);
+    this.drawButton(cx + 80, speedY, 36, 36, "+", COLORS.white, COLORS.dark);
+
+    // Settings: restitution
+    const restY = cy + 235;
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.font = "11px 'Hachi Maru Pop', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("だんせい", cx, restY - 16);
+    ctx.globalAlpha = 1;
+
+    this.drawButton(cx - 80, restY, 36, 36, "-", COLORS.white, COLORS.dark);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.dark;
+    ctx.font = "15px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`${restitution.toFixed(1)}`, cx, restY);
+    this.drawButton(cx + 80, restY, 36, 36, "+", COLORS.white, COLORS.dark);
+
+    ctx.textAlign = "left";
+  }
+
+  drawClearScreen(w: number, h: number, goalsScored: number): void {
+    const ctx = this.ctx;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Confetti background
+    for (let i = 0; i < 20; i++) {
+      const confX = (Math.sin(i * 7.3 + this.t * 0.8) * 0.5 + 0.5) * w;
+      const confY = ((i * 41 + this.t * 30) % (h + 40)) - 20;
+      const confSize = 4 + (i % 3) * 2;
+      const confColors = [COLORS.red, COLORS.gold, COLORS.blue, COLORS.green];
+      ctx.fillStyle = confColors[i % confColors.length]!;
+      ctx.globalAlpha = 0.4;
+      ctx.save();
+      ctx.translate(confX, confY);
+      ctx.rotate(this.t * 2 + i);
+      ctx.fillRect(-confSize / 2, -confSize / 2, confSize, confSize * 0.4);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // "Clear" with scale pulse
+    const scale = 1 + Math.sin(this.t * 3) * 0.03;
+    ctx.save();
+    ctx.translate(cx, cy - 80);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = COLORS.red;
+    ctx.font = "48px 'Hachi Maru Pop', cursive";
+    ctx.fillText("クリア！", 0, 0);
+    ctx.restore();
+
+    // Score display
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = "56px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`${goalsScored}`, cx, cy - 10);
+
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.6;
+    ctx.font = "14px 'Hachi Maru Pop', cursive";
+    ctx.fillText("こ ゴールイン！", cx, cy + 30);
+    ctx.globalAlpha = 1;
+
+    // Stars
+    const star1 = goalsScored >= 1;
+    const star2 = goalsScored >= 3;
+    const star3 = goalsScored >= 5;
+    this.drawStar(cx - 50, cy + 70, 26, star1);
+    this.drawStar(cx, cy + 60, 30, star2);
+    this.drawStar(cx + 50, cy + 70, 26, star3);
+
+    this.drawButton(cx, cy + 125, 200, 54, "つぎへ", COLORS.blue, COLORS.white, "next");
+    this.drawButton(cx, cy + 190, 200, 48, "もういちど", COLORS.white, COLORS.dark, "retry");
+  }
+
+  drawFailScreen(w: number, h: number): void {
+    const ctx = this.ctx;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Sad marble
+    const bounce = Math.sin(this.t * 1.5) * 4;
+    this.drawMarble(cx, cy - 80 + bounce, 30);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.7;
+    ctx.font = "36px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ざんねん…", cx, cy - 30);
+    ctx.globalAlpha = 1;
+
+    ctx.font = "14px 'Hachi Maru Pop', cursive";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.fillText("もういちど やってみよう！", cx, cy + 15);
+    ctx.globalAlpha = 1;
+
+    this.drawButton(cx, cy + 70, 200, 54, "リトライ", COLORS.red, COLORS.white, "retry");
+  }
+
+  drawMarble(x: number, y: number, r: number, colorIndex?: number, opacity = 1): void {
+    const ctx = this.ctx;
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = opacity;
+    const tone = MARBLE_TONES[colorIndex ?? 2]!;
+
+    const grad = ctx.createRadialGradient(
+      x - r * 0.15,
+      y - r * 0.2,
+      0,
+      x,
+      y,
+      r,
+    );
+    grad.addColorStop(0, tone[0]);
+    grad.addColorStop(0.4, tone[1]);
+    grad.addColorStop(0.7, tone[2]);
+    grad.addColorStop(1, tone[3]);
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.3, r * 0.2, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x + r * 0.15, y + r * 0.2, r * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    ctx.fill();
+
+    ctx.globalAlpha = prevAlpha;
+  }
+
+  drawGoal(x: number, y: number, goalsScored = 0, introAge = 999): void {
+    const ctx = this.ctx;
+    const pulse = 1 + Math.sin(this.t * 3) * 0.08;
+    const glowAlpha = 0.15 + Math.sin(this.t * 3) * 0.1;
+
+    // Intro ripple effect
+    if (introAge < 1.5) {
+      const rippleCount = 2;
+      for (let i = 0; i < rippleCount; i++) {
+        const delay = i * 0.3;
+        const age = introAge - delay;
+        if (age > 0 && age < 1.2) {
+          const progress = age / 1.2;
+          const rippleR = 20 + progress * 60;
+          const rippleAlpha = (1 - progress) * 0.35;
+          ctx.beginPath();
+          ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(243,156,18,${rippleAlpha})`;
+          ctx.lineWidth = 3 * (1 - progress);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Glow ring
+    ctx.beginPath();
+    ctx.arc(x, y, 38 * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(243,156,18,${glowAlpha})`;
+    ctx.fill();
+
+    // Basket shape - trapezoid cup
+    const bw = 36;
+    const bh = 28;
+    const topW = bw;
+    const botW = bw * 0.7;
+
+    ctx.beginPath();
+    ctx.moveTo(x - topW, y - bh * 0.3);
+    ctx.lineTo(x + topW, y - bh * 0.3);
+    ctx.lineTo(x + botW, y + bh * 0.5);
+    ctx.lineTo(x - botW, y + bh * 0.5);
+    ctx.closePath();
+
+    const basketGrad = ctx.createLinearGradient(0, y - bh * 0.3, 0, y + bh * 0.5);
+    basketGrad.addColorStop(0, COLORS.gold);
+    basketGrad.addColorStop(1, "#E67E22");
+    ctx.fillStyle = basketGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#D4740E";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Horizontal lines on basket
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = COLORS.white;
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      const ly = y - bh * 0.3 + (bh * 0.8 * i) / 3;
+      const ratio = i / 3;
+      const lw = topW + (botW - topW) * ratio;
+      ctx.beginPath();
+      ctx.moveTo(x - lw, ly);
+      ctx.lineTo(x + lw, ly);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Down arrow above basket
+    const arrowY = y - bh * 0.3 - 14;
+    const arrowPulse = Math.sin(this.t * 4) * 3;
+    ctx.fillStyle = COLORS.gold;
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, arrowY - 6 + arrowPulse);
+    ctx.lineTo(x + 8, arrowY - 6 + arrowPulse);
+    ctx.lineTo(x, arrowY + 6 + arrowPulse);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.font = "10px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ゴール", x, y + bh * 0.5 + 6);
+    ctx.globalAlpha = 1;
+
+    // Score badge
+    if (goalsScored > 0) {
+      const badgeX = x + topW + 6;
+      const badgeY = y - bh * 0.3 - 6;
+      const badgeR = 14;
+
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.red;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.white;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = COLORS.white;
+      ctx.font = "bold 12px 'Hachi Maru Pop', cursive";
+      ctx.fillText(`${goalsScored}`, badgeX, badgeY);
+    }
+  }
+
+  drawStart(x: number, y: number, introAge = 999): void {
+    const ctx = this.ctx;
+
+    // Intro ripple effect
+    if (introAge < 1.5) {
+      const rippleCount = 2;
+      for (let i = 0; i < rippleCount; i++) {
+        const delay = i * 0.3;
+        const age = introAge - delay;
+        if (age > 0 && age < 1.2) {
+          const progress = age / 1.2;
+          const rippleR = 15 + progress * 50;
+          const rippleAlpha = (1 - progress) * 0.3;
+          ctx.beginPath();
+          ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(231,76,60,${rippleAlpha})`;
+          ctx.lineWidth = 3 * (1 - progress);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Platform
+    ctx.beginPath();
+    ctx.roundRect(x - 34, y - 10, 68, 20, 10);
+    const grad = ctx.createLinearGradient(x - 34, 0, x + 34, 0);
+    grad.addColorStop(0, COLORS.gold);
+    grad.addColorStop(0.5, COLORS.goldLight);
+    grad.addColorStop(1, "#E67E22");
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#D4740E";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Down arrow indicating drop
+    const arrowY = y + 18;
+    const arrowPulse = Math.sin(this.t * 3) * 3;
+    ctx.fillStyle = COLORS.gold;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, arrowY + arrowPulse);
+    ctx.lineTo(x + 6, arrowY + arrowPulse);
+    ctx.lineTo(x, arrowY + 10 + arrowPulse);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.5;
+    ctx.font = "10px 'Hachi Maru Pop', cursive";
+    ctx.fillText("スタート", x, y + 30);
+    ctx.globalAlpha = 1;
+  }
+
+  drawGravityArrow(w: number, h: number): void {
+    const ctx = this.ctx;
+    const x = w - 20;
+    const y = h / 2;
+
+    ctx.globalAlpha = 0.2;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y - 20);
+    ctx.lineTo(x, y + 20);
+    ctx.strokeStyle = COLORS.dark;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x - 7, y + 14);
+    ctx.lineTo(x, y + 24);
+    ctx.lineTo(x + 7, y + 14);
+    ctx.fillStyle = COLORS.dark;
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.lineCap = "butt";
+  }
+
+  drawDrum(x: number, y: number, w: number, h: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    // 衝突時の揺れオフセット
+    let shakeX = 0;
+    let shakeY = 0;
+    if (isHit) {
+      const progress = hitAge / HIT_DURATION;
+      const decay = 1 - progress;
+      shakeX = Math.sin(hitAge * 60) * 3 * decay;
+      shakeY = Math.cos(hitAge * 80) * 2 * decay;
+    }
+
+    const dx = x + shakeX;
+    const dy = y + shakeY;
+
+    // Shadow
+    ctx.beginPath();
+    ctx.roundRect(dx - w / 2 + 2, dy - h / 2 + 2, w, h, 8);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+
+    // 衝突時は明るい色に変化します
+    const topColor = isHit ? COLORS.goldLight : COLORS.red;
+    const bottomColor = isHit ? COLORS.gold : COLORS.redDark;
+
+    ctx.beginPath();
+    ctx.roundRect(dx - w / 2, dy - h / 2, w, h, 8);
+    const grad = ctx.createLinearGradient(0, dy - h / 2, 0, dy + h / 2);
+    grad.addColorStop(0, topColor);
+    grad.addColorStop(1, bottomColor);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.roundRect(dx - w / 2, dy - h / 2, w, 6, [6, 6, 0, 0]);
+    ctx.fillStyle = isHit ? COLORS.white : COLORS.gold;
+    ctx.fill();
+  }
+
+  drawBumper(x: number, y: number, r: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    // 衝突時のスケール変化
+    let scale = 1;
+    if (isHit) {
+      const progress = hitAge / HIT_DURATION;
+      scale = 1 + Math.sin(progress * Math.PI) * 0.2;
+    }
+
+    const dr = r * scale;
+
+    // Shadow
+    ctx.beginPath();
+    ctx.arc(x + 2, y + 2, dr, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+
+    // Body gradient
+    const baseColor = isHit ? COLORS.goldLight : COLORS.blue;
+    const darkColor = isHit ? COLORS.gold : COLORS.blueDark;
+    const grad = ctx.createRadialGradient(x - dr * 0.2, y - dr * 0.2, 0, x, y, dr);
+    grad.addColorStop(0, isHit ? COLORS.white : "#90CAF9");
+    grad.addColorStop(0.5, baseColor);
+    grad.addColorStop(1, darkColor);
+
+    ctx.beginPath();
+    ctx.arc(x, y, dr, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = darkColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Highlight
+    ctx.beginPath();
+    ctx.ellipse(x - dr * 0.2, y - dr * 0.25, dr * 0.35, dr * 0.2, -0.4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fill();
+
+    // Bounce arrows
+    if (!isHit) {
+      const arrowPulse = Math.sin(this.t * 4) * 2;
+      ctx.fillStyle = COLORS.white;
+      ctx.globalAlpha = 0.4;
+      const arrowSize = r * 0.25;
+      for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI * 2 * i) / 4 + Math.PI / 4;
+        const ax = x + Math.cos(angle) * (dr + 6 + arrowPulse);
+        const ay = y + Math.sin(angle) * (dr + 6 + arrowPulse);
+        ctx.beginPath();
+        ctx.moveTo(
+          ax + Math.cos(angle) * arrowSize,
+          ay + Math.sin(angle) * arrowSize,
+        );
+        ctx.lineTo(
+          ax + Math.cos(angle + 2.2) * arrowSize,
+          ay + Math.sin(angle + 2.2) * arrowSize,
+        );
+        ctx.lineTo(
+          ax + Math.cos(angle - 2.2) * arrowSize,
+          ay + Math.sin(angle - 2.2) * arrowSize,
+        );
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  drawTrampoline(x: number, y: number): void {
+    const ctx = this.ctx;
+
+    // Legs
+    ctx.fillStyle = COLORS.dark;
+    ctx.fillRect(x - 26, y, 5, 18);
+    ctx.fillRect(x + 21, y, 5, 18);
+
+    // Spring lines
+    ctx.strokeStyle = COLORS.dark;
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 20, y + 6);
+    for (let i = 0; i < 8; i++) {
+      ctx.lineTo(x - 20 + i * 5 + 2.5, y + (i % 2 === 0 ? 2 : 10));
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Surface
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 32, 8, 0, Math.PI, 0);
+    const grad = ctx.createLinearGradient(0, y - 6, 0, y + 10);
+    grad.addColorStop(0, COLORS.red);
+    grad.addColorStop(1, COLORS.redDark);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Bounce arrows
+    const bounce = Math.sin(this.t * 4) * 2;
+    ctx.fillStyle = COLORS.goldLight;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y - 8 - bounce);
+    ctx.lineTo(x + 5, y - 8 - bounce);
+    ctx.lineTo(x, y - 16 - bounce);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  drawShelf(shelf: Shelf): void {
+    const ctx = this.ctx;
+    if (shelf.points.length < 2) return;
+
+    ctx.beginPath();
+    const first = shelf.points[0]!;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < shelf.points.length; i++) {
+      const p = shelf.points[i]!;
+      ctx.lineTo(p.x, p.y);
+    }
+
+    // Outer glow
+    ctx.strokeStyle = "rgba(243,156,18,0.15)";
+    ctx.lineWidth = 16;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // Main line
+    ctx.strokeStyle = "rgba(243,156,18,0.5)";
+    ctx.lineWidth = 8;
+    ctx.stroke();
+
+    // Inner highlight
+    ctx.strokeStyle = "rgba(255,217,61,0.3)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.lineCap = "butt";
+
+    // × mark at endpoint for deletion
+    const last = shelf.points[shelf.points.length - 1]!;
+    const xm = last.x;
+    const ym = last.y;
+    ctx.beginPath();
+    ctx.arc(xm, ym, 10, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(231,76,60,0.7)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(xm - 4, ym - 4);
+    ctx.lineTo(xm + 4, ym + 4);
+    ctx.moveTo(xm + 4, ym - 4);
+    ctx.lineTo(xm - 4, ym + 4);
+    ctx.strokeStyle = COLORS.white;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.lineCap = "butt";
+  }
+
+  drawCurrentPath(points: { x: number; y: number }[]): void {
+    if (points.length < 2) return;
+    const ctx = this.ctx;
+
+    ctx.beginPath();
+    const first = points[0]!;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i++) {
+      const p = points[i]!;
+      ctx.lineTo(p.x, p.y);
+    }
+
+    ctx.strokeStyle = "rgba(243,156,18,0.25)";
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    // Dashed preview
+    ctx.setLineDash([4, 6]);
+    ctx.strokeStyle = "rgba(243,156,18,0.5)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.lineCap = "butt";
+  }
+
+  drawLevelBackground(level: number, w: number, h: number): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(74,32,32,0.04)";
+    ctx.font = "bold 160px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`${level}`, w / 2, h / 2);
+    ctx.fillStyle = "rgba(74,32,32,0.025)";
+    ctx.font = "bold 40px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`Lv.${level}`, w / 2, h / 2 + 90);
+    ctx.restore();
+  }
+
+  drawHUD(
+    _level: number,
+    w: number,
+    timeRemaining: number,
+    timerStarted: boolean,
+  ): void {
+    const ctx = this.ctx;
+
+    // Timer - circular progress
+    const timerX = w / 2;
+    const timerY = 27;
+    const timerR = 20;
+    const seconds = Math.ceil(timeRemaining);
+    const isUrgent = timerStarted && timeRemaining <= 10;
+    const progress = timerStarted ? timeRemaining / 30 : 1;
+
+    // Background circle
+    ctx.beginPath();
+    ctx.arc(timerX, timerY, timerR, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.white;
+    ctx.fill();
+
+    // Progress arc
+    ctx.beginPath();
+    ctx.moveTo(timerX, timerY);
+    ctx.arc(
+      timerX,
+      timerY,
+      timerR,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * progress,
+    );
+    ctx.closePath();
+    ctx.fillStyle = isUrgent
+      ? `rgba(231,76,60,${0.2 + Math.sin(this.t * 6) * 0.1})`
+      : "rgba(46,204,113,0.2)";
+    ctx.fill();
+
+    // Border
+    ctx.beginPath();
+    ctx.arc(timerX, timerY, timerR, 0, Math.PI * 2);
+    ctx.strokeStyle = isUrgent ? COLORS.red : "rgba(74,32,32,0.15)";
+    ctx.lineWidth = isUrgent ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // Time text
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = isUrgent ? COLORS.red : COLORS.dark;
+    ctx.font = `${isUrgent ? "15" : "13"}px 'Hachi Maru Pop', cursive`;
+
+    if (timerStarted) {
+      ctx.fillText(`${seconds}`, timerX, timerY);
+    } else {
+      ctx.globalAlpha = 0.4;
+      ctx.fillText("30", timerX, timerY);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.textAlign = "left";
+  }
+
+  drawMarbleInfo(marbleCount: number, w: number): void {
+    const ctx = this.ctx;
+
+    // Small marble icon + count
+    const infoY = 54;
+
+    if (marbleCount > 0) {
+      this.drawMarble(w - 50, infoY, 6);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = COLORS.dark;
+      ctx.globalAlpha = 0.5;
+      ctx.font = "10px 'Hachi Maru Pop', cursive";
+      ctx.fillText(`x${marbleCount}`, w - 42, infoY);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.textAlign = "left";
+  }
+
+  drawGoalEffect(effect: GoalEffect): void {
+    const ctx = this.ctx;
+    const alpha = Math.max(0, 1 - effect.age);
+
+    // Particles
+    for (const p of effect.particles) {
+      ctx.globalAlpha = alpha * 0.8;
+      const size = (4 * alpha + 1) * (1 + Math.sin(effect.age * 10) * 0.2);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    }
+
+    // Score popup floating upward with scale
+    const offsetY = effect.age * -70;
+    const popScale = Math.min(1, effect.age * 5) * (1 + (1 - effect.age) * 0.2);
+
+    ctx.save();
+    ctx.translate(effect.x, effect.y + offsetY - 20);
+    ctx.scale(popScale, popScale);
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = "30px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`${effect.score}`, 0, 0);
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.font = "11px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ゴール！", 0, 20);
+    ctx.restore();
+
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+  }
+
+  drawBreakEffect(effect: BreakEffect): void {
+    const ctx = this.ctx;
+    const alpha = Math.max(0, 1 - effect.age / 0.6);
+
+    for (const p of effect.particles) {
+      ctx.globalAlpha = alpha * 0.9;
+      const size = p.size * alpha;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+  }
+
+  drawResetButton(h: number): void {
+    this.drawButton(28, h - 28, 40, 40, "", COLORS.white, COLORS.dark, "reset");
+  }
+
+
+  private isPressed(x: number, y: number, w: number, h: number): boolean {
+    if (!this.pressedPoint) return false;
+    const px = this.pressedPoint.x;
+    const py = this.pressedPoint.y;
+    return (
+      px >= x - w / 2 - 6 &&
+      px <= x + w / 2 + 6 &&
+      py >= y - h / 2 - 6 &&
+      py <= y + h / 2 + 6
+    );
+  }
+
+  private drawButton(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    text: string,
+    bg: string,
+    fg: string,
+    icon?: string,
+  ): void {
+    const ctx = this.ctx;
+    const pressed = this.isPressed(x, y, w, h);
+    const shadowH = pressed ? 1 : 4;
+    const offsetY = pressed ? 3 : 0;
+
+    const bx = x - w / 2;
+    const by = y - h / 2 + offsetY;
+    const r = Math.min(h / 2, 16);
+
+    // Shadow
+    ctx.beginPath();
+    ctx.roundRect(bx, by + shadowH, w, h, r);
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fill();
+
+    // Body
+    ctx.beginPath();
+    ctx.roundRect(bx, by, w, h, r);
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    // Border
+    const isLight = bg === COLORS.white || bg === "#E0FFE8" || bg === "#FFE0E0";
+    if (isLight) {
+      ctx.strokeStyle = bg === "#FFE0E0"
+        ? "rgba(231,76,60,0.3)"
+        : bg === "#E0FFE8"
+          ? "rgba(39,174,96,0.3)"
+          : "rgba(74,32,32,0.12)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = "rgba(0,0,0,0.08)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Top highlight
+    if (!pressed) {
+      ctx.beginPath();
+      ctx.roundRect(bx + 2, by + 1, w - 4, h * 0.35, [r, r, 0, 0]);
+      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.fill();
+    }
+
+    // Draw icon if specified
+    if (icon) {
+      this.drawIcon(x, y + offsetY, icon, fg, Math.min(w, h) * 0.45);
+    }
+
+    // Text
+    if (text) {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = fg;
+      const fontSize = Math.min(h * 0.4, 16);
+      ctx.font = `${fontSize}px 'Hachi Maru Pop', cursive`;
+      const textY = icon ? y + offsetY + 2 : y + offsetY;
+      ctx.fillText(text, x, textY);
+    }
+  }
+
+  private drawIcon(x: number, y: number, icon: string, color: string, size: number): void {
+    const ctx = this.ctx;
+    const s = size;
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    switch (icon) {
+      case "pencil": {
+        // Simple pencil shape
+        const px = x - s * 0.3;
+        const py = y + s * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + s * 0.5, py - s * 0.5);
+        ctx.lineTo(px + s * 0.65, py - s * 0.35);
+        ctx.lineTo(px + s * 0.15, py + s * 0.15);
+        ctx.closePath();
+        ctx.fill();
+        // Tip
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - s * 0.1, py + s * 0.1);
+        ctx.lineTo(px + s * 0.15, py + s * 0.15);
+        ctx.closePath();
+        ctx.fillStyle = COLORS.gold;
+        ctx.fill();
+        break;
+      }
+      case "eraser": {
+        // Eraser rectangle
+        ctx.beginPath();
+        ctx.roundRect(x - s * 0.35, y - s * 0.2, s * 0.7, s * 0.4, 3);
+        ctx.fillStyle = COLORS.red;
+        ctx.fill();
+        // Bottom part
+        ctx.beginPath();
+        ctx.roundRect(x - s * 0.35, y, s * 0.7, s * 0.15, [0, 0, 3, 3]);
+        ctx.fillStyle = "#FFB0B0";
+        ctx.fill();
+        break;
+      }
+      case "reset": {
+        // Circular arrow
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.35, -Math.PI * 0.3, Math.PI * 1.3);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Arrow head
+        const ax = x + Math.cos(-Math.PI * 0.3) * s * 0.35;
+        const ay = y + Math.sin(-Math.PI * 0.3) * s * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(ax - 4, ay - 2);
+        ctx.lineTo(ax + 1, ay - 5);
+        ctx.lineTo(ax + 1, ay + 3);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        break;
+      }
+      case "roll": {
+        // Small marble icon before text
+        const mx = x - 42;
+        this.drawMarble(mx, y, 8);
+        break;
+      }
+      case "stop": {
+        // Square stop icon
+        ctx.fillStyle = COLORS.white;
+        ctx.fillRect(x - 30, y - s * 0.2, s * 0.4, s * 0.4);
+        break;
+      }
+      case "slower": {
+        // Turtle-like: small circle with lines
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.font = "14px 'Hachi Maru Pop', cursive";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("-", x, y);
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case "faster": {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.font = "14px 'Hachi Maru Pop', cursive";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("+", x, y);
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case "bounce_less": {
+        // Down arrow (less bounce)
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y + 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x, y + 6);
+        ctx.lineTo(x, y + 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case "bounce_more": {
+        // Up arrow (more bounce)
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y + 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x, y - 2);
+        ctx.lineTo(x, y - 7);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Up arrow head
+        ctx.beginPath();
+        ctx.moveTo(x - 3, y - 5);
+        ctx.lineTo(x, y - 9);
+        ctx.lineTo(x + 3, y - 5);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case "play": {
+        // Play triangle before text
+        const tx = x - 58;
+        ctx.beginPath();
+        ctx.moveTo(tx, y - 8);
+        ctx.lineTo(tx, y + 8);
+        ctx.lineTo(tx + 12, y);
+        ctx.closePath();
+        ctx.fillStyle = COLORS.white;
+        ctx.fill();
+        break;
+      }
+      case "next": {
+        // Right arrow after text
+        const nx = x + 42;
+        ctx.beginPath();
+        ctx.moveTo(nx, y - 6);
+        ctx.lineTo(nx, y + 6);
+        ctx.lineTo(nx + 8, y);
+        ctx.closePath();
+        ctx.fillStyle = COLORS.white;
+        ctx.fill();
+        break;
+      }
+      case "retry": {
+        // Circular arrow (same as reset but smaller)
+        const rx = x - 50;
+        ctx.beginPath();
+        ctx.arc(rx, y, 7, -Math.PI * 0.3, Math.PI * 1.3);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        break;
+      }
+      case "gear": {
+        // Gear icon
+        const gr = s * 0.35;
+        const teeth = 6;
+        ctx.beginPath();
+        for (let i = 0; i < teeth * 2; i++) {
+          const angle = (i * Math.PI) / teeth;
+          const r2 = i % 2 === 0 ? gr : gr * 0.7;
+          const gx = x + Math.cos(angle) * r2;
+          const gy = y + Math.sin(angle) * r2;
+          if (i === 0) ctx.moveTo(gx, gy);
+          else ctx.lineTo(gx, gy);
+        }
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.5;
+        ctx.fill();
+        // Center hole
+        ctx.beginPath();
+        ctx.arc(x, y, gr * 0.25, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.white;
+        ctx.globalAlpha = 1;
+        ctx.fill();
+        break;
+      }
+      default:
+        break;
+    }
+
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "miter";
+  }
+
+  private drawStar(x: number, y: number, r: number, filled: boolean): void {
+    const ctx = this.ctx;
+    const spikes = 5;
+    const outerRadius = r;
+    const innerRadius = r * 0.4;
+
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const angle = (i * Math.PI) / spikes - Math.PI / 2;
+      const px = x + Math.cos(angle) * radius;
+      const py = y + Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+
+    if (filled) {
+      const starGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      starGrad.addColorStop(0, COLORS.goldLight);
+      starGrad.addColorStop(1, COLORS.gold);
+      ctx.fillStyle = starGrad;
+    } else {
+      ctx.fillStyle = "rgba(243,156,18,0.12)";
+    }
+    ctx.fill();
+
+    if (filled) {
+      ctx.strokeStyle = "#D4740E";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+}

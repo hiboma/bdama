@@ -1,0 +1,1199 @@
+import Matter from "matter-js";
+import { Renderer } from "./Renderer";
+import { Input } from "./Input";
+import { LevelManager } from "./LevelManager";
+import type { ObstacleData, BumperData } from "./LevelManager";
+import type { Shelf } from "../entities/Shelf";
+import { Sound } from "./Sound";
+
+export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
+
+export interface GoalEffect {
+  x: number;
+  y: number;
+  score: number;
+  age: number;
+  particles: { x: number; y: number; vx: number; vy: number; color: string }[];
+}
+
+export interface BreakEffect {
+  x: number;
+  y: number;
+  age: number;
+  particles: { x: number; y: number; vx: number; vy: number; size: number; color: string }[];
+}
+
+const TIME_LIMIT = 30;
+const DEFAULT_SPEED = 0.4;
+const MIN_SPEED = 0.2;
+const MAX_SPEED = 1.0;
+const SPEED_STEP = 0.1;
+const DEFAULT_RESTITUTION = 0.5;
+const MIN_RESTITUTION = 0.0;
+const MAX_RESTITUTION = 1.0;
+const RESTITUTION_STEP = 0.1;
+const MARBLE_RADIUS = 17;
+const MARBLE_COLORS = [
+  "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
+];
+const SHELF_SEGMENT_LENGTH = 20;
+
+// mulberry32 シード付き疑似乱数生成器
+function createSeededRandom(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Color index: 0=Red, 1=Orange, 2=Yellow, 3=Green, 4=Blue, 5=Indigo, 6=Violet
+// Each: { restitution, density, friction, label }
+const MARBLE_TRAITS: { restitution: number; density: number; friction: number; label: string }[] = [
+  { restitution: 0.9,  density: 0.001, friction: 0.02, label: "はねる" },    // Red: bouncy & light
+  { restitution: 0.7,  density: 0.0015, friction: 0.03, label: "はやい" },   // Orange: fast
+  { restitution: 0.5,  density: 0.002, friction: 0.05, label: "ふつう" },    // Yellow: standard
+  { restitution: 0.4,  density: 0.003, friction: 0.08, label: "おもい" },    // Green: heavy
+  { restitution: 0.3,  density: 0.004, friction: 0.10, label: "ずっしり" },  // Blue: very heavy
+  { restitution: 0.6,  density: 0.001, friction: 0.01, label: "すべる" },    // Indigo: slippery
+  { restitution: 1.0,  density: 0.0008, friction: 0.02, label: "スーパー" }, // Violet: super bouncy
+];
+
+export class Game {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private engine: Matter.Engine;
+  private renderer: Renderer;
+  private input: Input;
+  private levelManager: LevelManager;
+  private state: GameState = "title";
+  private shelves: Shelf[] = [];
+  private marbles: Matter.Body[] = [];
+  private goalSensor: Matter.Body | null = null;
+  private staticBodies: Matter.Body[] = [];
+  private width = 0;
+  private height = 0;
+  private timeRemaining = TIME_LIMIT;
+  private timerStarted = false;
+  private lastTimestamp = 0;
+  private speed = DEFAULT_SPEED;
+  private restitution = DEFAULT_RESTITUTION;
+  private goalsScored = 0;
+  private goalEffects: GoalEffect[] = [];
+  private breakEffects: BreakEffect[] = [];
+  private marbleColors: Map<number, number> = new Map();
+  private marbleTaps: Map<number, number> = new Map();
+  private generatedObstacles: ObstacleData[] = [];
+  private whiteBalls: Matter.Body[] = [];
+  private whiteballHitBy: Set<number> = new Set();
+  private obstacleHitTimes: Map<number, number> = new Map();
+  private obstacleBodies: Matter.Body[] = [];
+  private generatedBumpers: BumperData[] = [];
+  private bumperBodies: Matter.Body[] = [];
+  private bumperHitTimes: Map<number, number> = new Map();
+  private marbleHits: Map<number, number> = new Map();
+  private marblesFallen = 0;
+  private seed: number | null = null;
+  private seededRandom: (() => number) | null = null;
+  private sound = new Sound();
+  private levelStartTime = 0;
+
+  constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d")!;
+    this.engine = Matter.Engine.create({
+      gravity: { x: 0, y: 1.2, scale: 0.001 },
+    });
+    this.renderer = new Renderer(this.ctx);
+    this.input = new Input(canvas);
+    this.levelManager = new LevelManager();
+    this.setupCollisionListener();
+    this.parseSeed();
+    this.loadSettings();
+    this.resize();
+    window.addEventListener("resize", () => this.resize());
+  }
+
+  private resize(): void {
+    const dpr = window.devicePixelRatio || 1;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.canvas.width = this.width * dpr;
+    this.canvas.height = this.height * dpr;
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  start(): void {
+    this.state = "title";
+    this.input.onTap((x, y, holdDuration) => this.handleTap(x, y, holdDuration));
+    this.input.onDrawEnd((points) => this.handleDrawEnd(points));
+    this.lastTimestamp = performance.now();
+    this.loop();
+  }
+
+  private loop = (): void => {
+    const now = performance.now();
+    const dt = (now - this.lastTimestamp) / 1000;
+    this.lastTimestamp = now;
+    this.update(dt);
+    this.render();
+    requestAnimationFrame(this.loop);
+  };
+
+  private update(dt: number): void {
+    if (this.timerStarted && this.state !== "clear" && this.state !== "fail" && this.state !== "title") {
+      this.timeRemaining -= dt;
+      if (this.timeRemaining <= 0) {
+        this.timeRemaining = 0;
+        this.cleanupPhysics();
+        if (this.goalsScored > 0) {
+          this.state = "clear";
+          this.sound.clear();
+        } else {
+          this.state = "fail";
+          this.sound.fail();
+        }
+        return;
+      }
+    }
+
+    if (this.state === "rolling") {
+      const timeScale = this.speed / DEFAULT_SPEED;
+      Matter.Engine.update(this.engine, (1000 / 60) * timeScale);
+      this.checkGoal();
+      this.checkOutOfBounds();
+    }
+
+    // Update goal effects
+    for (const effect of this.goalEffects) {
+      effect.age += dt;
+      for (const p of effect.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 120 * dt;
+      }
+    }
+    this.goalEffects = this.goalEffects.filter((e) => e.age < 1.0);
+
+    for (const effect of this.breakEffects) {
+      effect.age += dt;
+      for (const p of effect.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 150 * dt;
+      }
+    }
+    this.breakEffects = this.breakEffects.filter((e) => e.age < 0.6);
+  }
+
+  private render(): void {
+    this.renderer.pressedPoint = this.input.pointerDown;
+    this.ctx.clearRect(0, 0, this.width, this.height);
+    this.renderer.drawBackground(this.width, this.height);
+
+    if (this.state === "title") {
+      this.renderer.drawTitleScreen(this.width, this.height, this.speed, this.restitution);
+      return;
+    }
+
+    if (this.state === "clear") {
+      this.renderer.drawClearScreen(this.width, this.height, this.goalsScored);
+      return;
+    }
+
+    if (this.state === "fail") {
+      this.renderer.drawFailScreen(this.width, this.height);
+      return;
+    }
+
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    this.renderer.drawLevelBackground(
+      this.levelManager.currentLevel,
+      this.width,
+      this.height,
+    );
+
+    const introAge = (performance.now() - this.levelStartTime) / 1000;
+
+    this.renderer.drawGoal(
+      level.goal.x * this.width,
+      level.goal.y * this.height,
+      this.goalsScored,
+      introAge,
+    );
+    this.renderer.drawStart(
+      level.start.x * this.width,
+      level.start.y * this.height,
+      introAge,
+    );
+    this.renderer.drawGravityArrow(this.width, this.height);
+
+    const now = performance.now();
+    for (let i = 0; i < this.generatedObstacles.length; i++) {
+      const obs = this.generatedObstacles[i]!;
+      const body = this.obstacleBodies[i];
+      const hitTime = body ? this.obstacleHitTimes.get(body.id) : undefined;
+      const hitAge = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      this.renderer.drawDrum(
+        obs.x * this.width,
+        obs.y * this.height,
+        obs.w * this.width,
+        obs.h * this.height,
+        hitAge,
+      );
+    }
+
+    for (let i = 0; i < this.generatedBumpers.length; i++) {
+      const bp = this.generatedBumpers[i]!;
+      const body = this.bumperBodies[i];
+      const hitTime = body ? this.bumperHitTimes.get(body.id) : undefined;
+      const hitAge = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      this.renderer.drawBumper(
+        bp.x * this.width,
+        bp.y * this.height,
+        bp.r * this.width,
+        hitAge,
+      );
+    }
+
+    for (const t of level.trampolines) {
+      this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
+    }
+
+    for (const shelf of this.shelves) {
+      this.renderer.drawShelf(shelf);
+    }
+
+    if ((this.state === "playing" || this.state === "drawing" || this.state === "rolling") && this.input.currentPath.length > 0) {
+      this.renderer.drawCurrentPath(this.input.currentPath);
+    }
+
+    // Draw all marbles
+    if (this.marbles.length > 0) {
+      for (const marble of this.marbles) {
+        const colorIndex = this.marbleColors.get(marble.id) ?? 0;
+        const taps = this.marbleTaps.get(marble.id) ?? 0;
+        const opacity = 1 - taps * 0.2;
+        this.renderer.drawMarble(
+          marble.position.x,
+          marble.position.y,
+          MARBLE_RADIUS,
+          colorIndex,
+          opacity,
+        );
+      }
+    } else if (this.state === "playing" || this.state === "drawing") {
+      this.renderer.drawMarble(
+        level.start.x * this.width,
+        level.start.y * this.height - 20,
+        MARBLE_RADIUS,
+      );
+    }
+
+    // Draw white balls
+    for (const wb of this.whiteBalls) {
+      this.renderer.drawMarble(wb.position.x, wb.position.y, MARBLE_RADIUS, 7);
+    }
+
+    // Draw goal effects
+    for (const effect of this.goalEffects) {
+      this.renderer.drawGoalEffect(effect);
+    }
+
+    // Draw break effects
+    for (const effect of this.breakEffects) {
+      this.renderer.drawBreakEffect(effect);
+    }
+
+    // Draw marble count and goals scored
+    if (this.state === "rolling" || this.state === "playing" || this.state === "drawing") {
+      this.renderer.drawMarbleInfo(this.marbles.length, this.width);
+    }
+
+    this.renderer.drawHUD(
+      this.levelManager.currentLevel,
+      this.width,
+      this.timeRemaining,
+      this.timerStarted,
+    );
+
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      this.renderer.drawResetButton(this.height);
+    }
+  }
+
+  private handleTap(x: number, y: number, holdDuration = 0): void {
+    if (this.state === "title") {
+      const cx = this.width / 2;
+      const cy = this.height / 2;
+
+      // 速度 -/+ ボタン（タイトル画面の設定 UI）
+      const speedY = cy + 175;
+      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - speedY) < 22) {
+        if (this.speed > MIN_SPEED + 0.01) {
+          this.speed = Math.round((this.speed - SPEED_STEP) * 10) / 10;
+          this.saveSettings();
+          this.sound.tap();
+        }
+        return;
+      }
+      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - speedY) < 22) {
+        if (this.speed < MAX_SPEED - 0.01) {
+          this.speed = Math.round((this.speed + SPEED_STEP) * 10) / 10;
+          this.saveSettings();
+          this.sound.tap();
+        }
+        return;
+      }
+
+      // 弾性 -/+ ボタン
+      const restY = cy + 235;
+      if (Math.abs(x - (cx - 80)) < 22 && Math.abs(y - restY) < 22) {
+        if (this.restitution > MIN_RESTITUTION + 0.01) {
+          this.restitution = Math.round((this.restitution - RESTITUTION_STEP) * 10) / 10;
+          this.saveSettings();
+          this.sound.tap();
+        }
+        return;
+      }
+      if (Math.abs(x - (cx + 80)) < 22 && Math.abs(y - restY) < 22) {
+        if (this.restitution < MAX_RESTITUTION - 0.01) {
+          this.restitution = Math.round((this.restitution + RESTITUTION_STEP) * 10) / 10;
+          this.saveSettings();
+          this.sound.tap();
+        }
+        return;
+      }
+
+      // あそぶボタン
+      this.sound.tap();
+      this.state = "playing";
+      this.levelManager.loadLevel(1);
+      this.shelves = [];
+      this.timeRemaining = TIME_LIMIT;
+      this.timerStarted = false;
+      this.levelStartTime = performance.now();
+      this.generateObstacles();
+      this.setupObstaclesAndWhiteBalls();
+      return;
+    }
+
+    if (this.state === "clear" || this.state === "fail") {
+      const centerX = this.width / 2;
+      const centerY = this.height / 2;
+
+      if (this.state === "clear") {
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
+          this.sound.tap();
+          this.levelManager.nextLevel();
+          this.resetLevel();
+          return;
+        }
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 185)) < 30) {
+          this.sound.tap();
+          this.resetLevel();
+          return;
+        }
+      } else {
+        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 60)) < 30) {
+          this.sound.tap();
+          this.resetLevel();
+          return;
+        }
+      }
+      return;
+    }
+
+    if (this.state === "playing" || this.state === "drawing") {
+      // スタート地点タップでビー玉を転がします
+      const level = this.levelManager.current();
+      if (level) {
+        const startX = level.start.x * this.width;
+        const startY = level.start.y * this.height;
+        const dx = x - startX;
+        const dy = y - startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 40) {
+          this.sound.roll();
+          this.addMarble();
+          return;
+        }
+      }
+
+      // 棚の×マークタップで削除します
+      for (let i = this.shelves.length - 1; i >= 0; i--) {
+        const shelf = this.shelves[i]!;
+        const last = shelf.points[shelf.points.length - 1]!;
+        const dx = x - last.x;
+        const dy = y - last.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 16) {
+          for (const body of shelf.bodies) {
+            Matter.Composite.remove(this.engine.world, body);
+          }
+          this.shelves.splice(i, 1);
+          this.sound.erase();
+          if (this.shelves.length === 0) {
+            this.state = "playing";
+          }
+          return;
+        }
+      }
+
+      // リセットボタン（左下隅）
+      if (Math.abs(x - 28) < 22 && Math.abs(y - (this.height - 28)) < 22) {
+        this.sound.tap();
+        this.resetLevel();
+        return;
+      }
+    }
+
+    if (this.state === "rolling") {
+      // 白いボールをタップした場合は拒否音を鳴らします
+      for (const wb of this.whiteBalls) {
+        const dx = x - wb.position.x;
+        const dy = y - wb.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MARBLE_RADIUS + 10) {
+          this.sound.deny();
+          return;
+        }
+      }
+
+      // Tap marble to bounce it - longer hold = stronger bounce
+      // 4th tap breaks the marble
+      for (const marble of this.marbles) {
+        const dx = x - marble.position.x;
+        const dy = y - marble.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MARBLE_RADIUS + 10) {
+          const taps = (this.marbleTaps.get(marble.id) ?? 0) + 1;
+          this.marbleTaps.set(marble.id, taps);
+
+          if (taps >= 4) {
+            // Break the marble with particle effect
+            const mx = marble.position.x;
+            const my = marble.position.y;
+            const colorIndex = this.marbleColors.get(marble.id) ?? 2;
+            this.spawnBreakEffect(mx, my, colorIndex);
+
+            Matter.Composite.remove(this.engine.world, marble);
+            this.marbles = this.marbles.filter((m) => m !== marble);
+            this.marbleColors.delete(marble.id);
+            this.marbleTaps.delete(marble.id);
+            this.marbleHits.delete(marble.id);
+            this.sound.erase();
+            if (this.marbles.length === 0) {
+              this.cleanupStaticBodies();
+              this.state = this.shelves.length > 0 ? "drawing" : "playing";
+            }
+          } else {
+            const power = Math.min(holdDuration, 1.0);
+            const force = 0.024 + power * 0.075;
+            Matter.Body.applyForce(marble, marble.position, {
+              x: 0,
+              y: -force * marble.mass,
+            });
+            this.sound.bounce();
+          }
+          return;
+        }
+      }
+
+      // スタート地点タップで追加のビー玉を転がします
+      const level = this.levelManager.current();
+      if (level) {
+        const startX = level.start.x * this.width;
+        const startY = level.start.y * this.height;
+        const sdx = x - startX;
+        const sdy = y - startY;
+        const sdist = Math.sqrt(sdx * sdx + sdy * sdy);
+        if (sdist < 40) {
+          this.sound.roll();
+          this.addMarble();
+          return;
+        }
+      }
+
+      // リセットボタン（左下隅）
+      if (Math.abs(x - 28) < 22 && Math.abs(y - (this.height - 28)) < 22) {
+        this.sound.tap();
+        this.resetLevel();
+        return;
+      }
+    }
+  }
+
+  private handleDrawEnd(points: { x: number; y: number }[]): void {
+    if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return;
+
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    if (points.length < 2) return;
+
+    const first = points[0]!;
+    const last = points[points.length - 1]!;
+
+    const dx = last.x - first.x;
+    const dy = last.y - first.y;
+    const totalLen = Math.sqrt(dx * dx + dy * dy);
+    if (totalLen < 20) return;
+
+    // Create shelf as segmented bodies for better collision precision
+    const bodies = this.createSegmentedShelfBodies(points);
+    for (const body of bodies) {
+      Matter.Composite.add(this.engine.world, body);
+    }
+
+    const angle = Math.atan2(dy, dx);
+    this.shelves.push({ points: [...points], bodies, angle, length: totalLen });
+    this.sound.draw();
+    if (this.state !== "rolling") {
+      this.state = "drawing";
+    }
+  }
+
+  private createSegmentedShelfBodies(points: { x: number; y: number }[]): Matter.Body[] {
+    const bodies: Matter.Body[] = [];
+
+    // Simplify points to reduce segment count but keep shape
+    const simplified = this.simplifyPoints(points, 5);
+
+    for (let i = 0; i < simplified.length - 1; i++) {
+      const p1 = simplified[i]!;
+      const p2 = simplified[i + 1]!;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const segLen = Math.sqrt(dx * dx + dy * dy);
+      if (segLen < 3) continue;
+
+      const cx = (p1.x + p2.x) / 2;
+      const cy = (p1.y + p2.y) / 2;
+      const angle = Math.atan2(dy, dx);
+
+      const body = Matter.Bodies.rectangle(cx, cy, segLen + 2, 10, {
+        isStatic: true,
+        angle,
+        friction: 0.3,
+        restitution: 0.2,
+        label: "shelf",
+        render: { visible: false },
+        chamfer: { radius: 3 },
+      });
+      bodies.push(body);
+    }
+
+    return bodies;
+  }
+
+  private simplifyPoints(points: { x: number; y: number }[], minDist: number): { x: number; y: number }[] {
+    if (points.length <= 2) return [...points];
+
+    const result: { x: number; y: number }[] = [points[0]!];
+    let lastPoint = points[0]!;
+
+    for (let i = 1; i < points.length - 1; i++) {
+      const p = points[i]!;
+      const d = Math.sqrt((p.x - lastPoint.x) ** 2 + (p.y - lastPoint.y) ** 2);
+      if (d >= minDist) {
+        // Further subdivide long segments
+        if (d > SHELF_SEGMENT_LENGTH) {
+          const numSubs = Math.ceil(d / SHELF_SEGMENT_LENGTH);
+          for (let s = 1; s < numSubs; s++) {
+            const t = s / numSubs;
+            result.push({
+              x: lastPoint.x + (p.x - lastPoint.x) * t,
+              y: lastPoint.y + (p.y - lastPoint.y) * t,
+            });
+          }
+        }
+        result.push(p);
+        lastPoint = p;
+      }
+    }
+
+    result.push(points[points.length - 1]!);
+    return result;
+  }
+
+  private addMarble(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    if (!this.timerStarted) {
+      this.timerStarted = true;
+    }
+
+    // If first marble, set up level static bodies
+    if (this.marbles.length === 0) {
+      this.setupLevelBodies();
+    }
+
+    this.state = "rolling";
+
+    const startX = level.start.x * this.width;
+    const startY = level.start.y * this.height - 20;
+
+    // Offset slightly if there are already marbles at start
+    const offsetX = this.marbles.length * 5;
+
+    const colorIndex = Math.floor(Math.random() * 7);
+    const trait = MARBLE_TRAITS[colorIndex]!;
+
+    const marble = Matter.Bodies.circle(startX + offsetX, startY, MARBLE_RADIUS, {
+      restitution: trait.restitution * (this.restitution / DEFAULT_RESTITUTION),
+      friction: trait.friction,
+      density: trait.density,
+      label: "marble",
+      render: { visible: false },
+    });
+    Matter.Composite.add(this.engine.world, marble);
+    this.marbles.push(marble);
+    this.marbleColors.set(marble.id, colorIndex);
+    this.marbleTaps.set(marble.id, 0);
+    this.marbleHits.set(marble.id, 0);
+  }
+
+  private setupObstaclesAndWhiteBalls(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    // Obstacles
+    this.obstacleBodies = [];
+    for (const obs of this.generatedObstacles) {
+      const obsBody = Matter.Bodies.rectangle(
+        obs.x * this.width,
+        obs.y * this.height,
+        obs.w * this.width,
+        obs.h * this.height,
+        {
+          isStatic: true,
+          friction: 0.3,
+          restitution: 0.2,
+          label: "obstacle",
+          render: { visible: false },
+          chamfer: { radius: 3 },
+        },
+      );
+      Matter.Composite.add(this.engine.world, obsBody);
+      this.obstacleBodies.push(obsBody);
+    }
+
+    // Bumpers (circular obstacles with high restitution)
+    this.bumperBodies = [];
+    for (const bp of this.generatedBumpers) {
+      const bpBody = Matter.Bodies.circle(
+        bp.x * this.width,
+        bp.y * this.height,
+        bp.r * this.width,
+        {
+          isStatic: true,
+          restitution: 1.2,
+          friction: 0.01,
+          label: "bumper",
+          render: { visible: false },
+        },
+      );
+      Matter.Composite.add(this.engine.world, bpBody);
+      this.bumperBodies.push(bpBody);
+    }
+
+    // White balls (adjacent to obstacles)
+    this.setupWhiteBalls();
+  }
+
+  private setupLevelBodies(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    // Clean previous marbles and rolling bodies (keep obstacles and white balls)
+    this.cleanupRollingBodies();
+
+    // Goal sensor
+    const goalX = level.goal.x * this.width;
+    const goalY = level.goal.y * this.height;
+    this.goalSensor = Matter.Bodies.circle(goalX, goalY, 30, {
+      isStatic: true,
+      isSensor: true,
+      label: "goal",
+      render: { visible: false },
+    });
+    Matter.Composite.add(this.engine.world, this.goalSensor);
+    this.staticBodies.push(this.goalSensor);
+
+    // Trampolines
+    for (const t of level.trampolines) {
+      const trampolineBody = Matter.Bodies.rectangle(
+        t.x * this.width,
+        t.y * this.height,
+        60,
+        12,
+        {
+          isStatic: true,
+          restitution: 1.5,
+          label: "trampoline",
+          render: { visible: false },
+        },
+      );
+      Matter.Composite.add(this.engine.world, trampolineBody);
+      this.staticBodies.push(trampolineBody);
+    }
+
+    // Walls
+    const wallThickness = 20;
+    const walls = [
+      Matter.Bodies.rectangle(-wallThickness / 2, this.height / 2, wallThickness, this.height * 2, { isStatic: true, label: "wall" }),
+      Matter.Bodies.rectangle(this.width + wallThickness / 2, this.height / 2, wallThickness, this.height * 2, { isStatic: true, label: "wall" }),
+    ];
+    for (const w of walls) {
+      Matter.Composite.add(this.engine.world, w);
+      this.staticBodies.push(w);
+    }
+  }
+
+  private checkGoal(): void {
+    if (!this.goalSensor) return;
+
+    const gx = this.goalSensor.position.x;
+    const gy = this.goalSensor.position.y;
+
+    // 白いボールのゴール判定（スコア加算なし、除去のみ）
+    const whiteScored: Matter.Body[] = [];
+    for (const wb of this.whiteBalls) {
+      const dist = Math.sqrt(
+        (wb.position.x - gx) ** 2 + (wb.position.y - gy) ** 2,
+      );
+      if (dist < 35) {
+        whiteScored.push(wb);
+      }
+    }
+    for (const wb of whiteScored) {
+      Matter.Composite.remove(this.engine.world, wb);
+      this.whiteBalls = this.whiteBalls.filter((w) => w !== wb);
+
+      // 派手なエフェクト
+      const colors = ["#FFFFFF", "#FFD93D", "#E0E0E0", "#F39C12", "#FAFAFA", "#FF6B6B", "#4ECDC4", "#45B7D1"];
+      const particles = [];
+      const particleCount = 24;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 * i) / particleCount;
+        const speed = 120 + Math.random() * 80;
+        particles.push({
+          x: gx,
+          y: gy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 60,
+          color: colors[i % colors.length]!,
+        });
+      }
+      this.goalEffects.push({ x: gx, y: gy, score: this.goalsScored, age: 0, particles });
+      this.sound.clear();
+    }
+
+    if (this.marbles.length === 0) return;
+
+    // 通常マーブルのゴール判定
+    const scored: Matter.Body[] = [];
+    for (const marble of this.marbles) {
+      const dist = Math.sqrt(
+        (marble.position.x - gx) ** 2 + (marble.position.y - gy) ** 2,
+      );
+      if (dist < 35) {
+        scored.push(marble);
+      }
+    }
+
+    for (const marble of scored) {
+      const isBonus = this.whiteballHitBy.has(marble.id);
+      if (isBonus) {
+        this.goalsScored += 3;
+      } else {
+        this.goalsScored++;
+      }
+
+      const colors = isBonus
+        ? ["#FFFFFF", "#FFD93D", "#E0E0E0", "#F39C12", "#FAFAFA"]
+        : ["#FFD93D", "#E74C3C", "#2980B9", "#F39C12", "#2ECC71"];
+      const particles = [];
+      const particleCount = isBonus ? 18 : 12;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 * i) / particleCount;
+        const speed = (isBonus ? 100 : 80) + Math.random() * 60;
+        particles.push({
+          x: gx,
+          y: gy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 40,
+          color: colors[i % colors.length]!,
+        });
+      }
+      this.goalEffects.push({ x: gx, y: gy, score: this.goalsScored, age: 0, particles });
+      this.sound.goal(this.goalsScored);
+
+      Matter.Composite.remove(this.engine.world, marble);
+      this.marbles = this.marbles.filter((m) => m !== marble);
+      this.marbleColors.delete(marble.id);
+      this.marbleTaps.delete(marble.id);
+      this.marbleHits.delete(marble.id);
+      this.whiteballHitBy.delete(marble.id);
+    }
+  }
+
+  private checkOutOfBounds(): void {
+    // Remove marbles that fall out of bounds
+    const toRemove: Matter.Body[] = [];
+    for (const marble of this.marbles) {
+      if (
+        marble.position.y > this.height + 100 ||
+        marble.position.y < -200
+      ) {
+        toRemove.push(marble);
+      }
+    }
+
+    for (const marble of toRemove) {
+      Matter.Composite.remove(this.engine.world, marble);
+      this.marbles = this.marbles.filter((m) => m !== marble);
+      this.marbleColors.delete(marble.id);
+      this.marbleTaps.delete(marble.id);
+      this.marbleHits.delete(marble.id);
+      this.whiteballHitBy.delete(marble.id);
+      this.marblesFallen++;
+      this.sound.fall();
+    }
+
+    // Remove white balls that fall out of bounds
+    const whiteToRemove: Matter.Body[] = [];
+    for (const wb of this.whiteBalls) {
+      if (wb.position.y > this.height + 100 || wb.position.y < -200) {
+        whiteToRemove.push(wb);
+      }
+    }
+    for (const wb of whiteToRemove) {
+      Matter.Composite.remove(this.engine.world, wb);
+      this.whiteBalls = this.whiteBalls.filter((w) => w !== wb);
+    }
+
+    // If all marbles are gone, return to drawing
+    if (this.marbles.length === 0 && this.state === "rolling") {
+      this.cleanupStaticBodies();
+      this.state = this.shelves.length > 0 ? "drawing" : "playing";
+    }
+  }
+
+  private resetLevel(): void {
+    this.cleanupPhysics();
+    this.shelves = [];
+    this.marbles = [];
+    this.goalSensor = null;
+    this.staticBodies = [];
+    this.state = "playing";
+    this.timeRemaining = TIME_LIMIT;
+    this.timerStarted = false;
+    this.loadSettings();
+    this.levelStartTime = performance.now();
+    this.goalsScored = 0;
+    this.marblesFallen = 0;
+    this.goalEffects = [];
+    this.breakEffects = [];
+    this.marbleColors.clear();
+    this.marbleTaps.clear();
+    this.marbleHits.clear();
+    this.whiteBalls = [];
+    this.whiteballHitBy.clear();
+    this.obstacleBodies = [];
+    this.obstacleHitTimes.clear();
+    this.bumperBodies = [];
+    this.bumperHitTimes.clear();
+    this.generateObstacles();
+    this.setupObstaclesAndWhiteBalls();
+  }
+
+  private spawnBreakEffect(x: number, y: number, colorIndex: number): void {
+    const color = MARBLE_COLORS[colorIndex] ?? MARBLE_COLORS[2]!;
+    const particles = [];
+    for (let i = 0; i < 16; i++) {
+      const angle = (Math.PI * 2 * i) / 16 + (Math.random() - 0.5) * 0.3;
+      const speed = 60 + Math.random() * 80;
+      particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 30,
+        size: 2 + Math.random() * 4,
+        color,
+      });
+    }
+    this.breakEffects.push({ x, y, age: 0, particles });
+  }
+
+  private parseSeed(): void {
+    const params = new URLSearchParams(window.location.search);
+    const seedParam = params.get("seed");
+    if (seedParam !== null) {
+      this.seed = parseInt(seedParam, 10);
+      if (isNaN(this.seed)) {
+        this.seed = null;
+      }
+    }
+  }
+
+  private getRandom(): number {
+    if (this.seededRandom) {
+      return this.seededRandom();
+    }
+    return Math.random();
+  }
+
+  private generateObstacles(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    // シードがある場合はレベル番号を組み合わせて乱数生成器を初期化します
+    if (this.seed !== null) {
+      this.seededRandom = createSeededRandom(this.seed + level.level);
+    } else {
+      this.seededRandom = null;
+    }
+
+    this.generatedObstacles = [...level.obstacles];
+
+    const startX = level.start.x;
+    const startY = level.start.y;
+    const goalX = level.goal.x;
+    const goalY = level.goal.y;
+
+    const count = level.randomObstacles ?? 0;
+    for (let i = 0; i < count; i++) {
+      const minY = Math.min(startY, goalY) + 0.1;
+      const maxY = Math.max(startY, goalY) - 0.1;
+      const x = 0.15 + this.getRandom() * 0.7;
+      const y = minY + this.getRandom() * (maxY - minY);
+      const w = 0.08 + this.getRandom() * 0.15;
+      const h = 0.03 + this.getRandom() * 0.04;
+
+      // スタートとゴールから離れた位置にのみ配置します
+      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
+      if (dStart < 0.15 || dGoal < 0.15) {
+        i--;
+        continue;
+      }
+
+      this.generatedObstacles.push({ x, y, w, h });
+    }
+
+    // バンパー（円形障害物）の生成
+    this.generatedBumpers = [...level.bumpers];
+    const bumperCount = level.randomBumpers ?? 0;
+    for (let i = 0; i < bumperCount; i++) {
+      const minY = Math.min(startY, goalY) + 0.1;
+      const maxY = Math.max(startY, goalY) - 0.1;
+      const x = 0.15 + this.getRandom() * 0.7;
+      const y = minY + this.getRandom() * (maxY - minY);
+      const r = 0.03 + this.getRandom() * 0.02;
+
+      const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+      const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
+      if (dStart < 0.15 || dGoal < 0.15) {
+        i--;
+        continue;
+      }
+
+      this.generatedBumpers.push({ x, y, r });
+    }
+  }
+
+  private setupCollisionListener(): void {
+    Matter.Events.on(this.engine, "collisionStart", (event) => {
+      for (const pair of event.pairs) {
+        const { bodyA, bodyB } = pair;
+        if (bodyA.label === "whiteball" && bodyB.label === "marble") {
+          this.whiteballHitBy.add(bodyB.id);
+        } else if (bodyB.label === "whiteball" && bodyA.label === "marble") {
+          this.whiteballHitBy.add(bodyA.id);
+        }
+
+        // 障害物の衝突フィードバック
+        let hitObstacle: Matter.Body | null = null;
+        let hitMarble: Matter.Body | null = null;
+        if (bodyA.label === "obstacle" && bodyB.label === "marble") {
+          hitObstacle = bodyA;
+          hitMarble = bodyB;
+        } else if (bodyB.label === "obstacle" && bodyA.label === "marble") {
+          hitObstacle = bodyB;
+          hitMarble = bodyA;
+        }
+        if (hitObstacle && hitMarble) {
+          this.obstacleHitTimes.set(hitObstacle.id, performance.now());
+          this.sound.bounce();
+          this.nudgeNearbyWhiteBalls(hitObstacle);
+          this.damageMarble(hitMarble);
+        }
+
+        // バンパーの衝突フィードバック
+        let hitBumper: Matter.Body | null = null;
+        let bumperMarble: Matter.Body | null = null;
+        if (bodyA.label === "bumper" && bodyB.label === "marble") {
+          hitBumper = bodyA;
+          bumperMarble = bodyB;
+        } else if (bodyB.label === "bumper" && bodyA.label === "marble") {
+          hitBumper = bodyB;
+          bumperMarble = bodyA;
+        }
+        if (hitBumper && bumperMarble) {
+          this.bumperHitTimes.set(hitBumper.id, performance.now());
+          this.sound.bounce();
+        }
+      }
+    });
+  }
+
+  private setupWhiteBalls(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    const count = level.whiteballCount ?? 0;
+    if (count === 0 || this.generatedObstacles.length === 0) return;
+
+    // 障害物からランダムに選んで白いボールを配置します
+    const indices = [...Array(this.generatedObstacles.length).keys()];
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(this.getRandom() * (i + 1));
+      [indices[i], indices[j]] = [indices[j]!, indices[i]!];
+    }
+
+    const placed = Math.min(count, indices.length);
+    for (let i = 0; i < placed; i++) {
+      const obs = this.generatedObstacles[indices[i]!]!;
+      const obsW = obs.w * this.width;
+
+      // 障害物の幅がボール直径より小さい場合はスキップします
+      if (obsW < MARBLE_RADIUS * 2) continue;
+
+      const whiteX = obs.x * this.width;
+      const whiteY = (obs.y - obs.h / 2) * this.height - MARBLE_RADIUS - 1;
+
+      const wb = Matter.Bodies.circle(whiteX, whiteY, MARBLE_RADIUS, {
+        restitution: 0.5,
+        friction: 0.01,
+        density: 0.002,
+        label: "whiteball",
+        render: { visible: false },
+      });
+      Matter.Composite.add(this.engine.world, wb);
+      this.whiteBalls.push(wb);
+    }
+  }
+
+  private damageMarble(marble: Matter.Body): void {
+    const hits = (this.marbleHits.get(marble.id) ?? 0) + 1;
+    this.marbleHits.set(marble.id, hits);
+
+    // タップダメージも加算して透明度に反映します
+    const taps = this.marbleTaps.get(marble.id) ?? 0;
+    this.marbleTaps.set(marble.id, taps + 1);
+
+    if (hits >= 6) {
+      const mx = marble.position.x;
+      const my = marble.position.y;
+      const colorIndex = this.marbleColors.get(marble.id) ?? 2;
+      this.spawnBreakEffect(mx, my, colorIndex);
+
+      Matter.Composite.remove(this.engine.world, marble);
+      this.marbles = this.marbles.filter((m) => m !== marble);
+      this.marbleColors.delete(marble.id);
+      this.marbleTaps.delete(marble.id);
+      this.marbleHits.delete(marble.id);
+      this.whiteballHitBy.delete(marble.id);
+      this.sound.erase();
+
+      if (this.marbles.length === 0 && this.state === "rolling") {
+        this.cleanupStaticBodies();
+        this.state = this.shelves.length > 0 ? "drawing" : "playing";
+      }
+    }
+  }
+
+  private nudgeNearbyWhiteBalls(obstacle: Matter.Body): void {
+    for (const wb of this.whiteBalls) {
+      const dx = wb.position.x - obstacle.position.x;
+      const dy = wb.position.y - obstacle.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 80) {
+        const forceX = (Math.random() - 0.5) * 0.0004;
+        const forceY = -0.0002;
+        Matter.Body.applyForce(wb, wb.position, { x: forceX, y: forceY });
+      }
+    }
+  }
+
+  private cleanupRollingBodies(): void {
+    // Remove marbles and rolling static bodies, keep obstacles, white balls, shelf bodies
+    for (const marble of this.marbles) {
+      Matter.Composite.remove(this.engine.world, marble);
+    }
+    this.marbles = [];
+    this.marbleColors.clear();
+    this.marbleTaps.clear();
+    this.marbleHits.clear();
+    this.whiteballHitBy.clear();
+
+    this.cleanupStaticBodies();
+  }
+
+  private cleanupStaticBodies(): void {
+    for (const body of this.staticBodies) {
+      Matter.Composite.remove(this.engine.world, body);
+    }
+    this.staticBodies = [];
+    this.goalSensor = null;
+  }
+
+  private loadSettings(): void {
+    try {
+      const saved = localStorage.getItem("b-dama-settings");
+      if (saved) {
+        const data = JSON.parse(saved) as { speed?: number; restitution?: number };
+        if (typeof data.speed === "number" && data.speed >= MIN_SPEED && data.speed <= MAX_SPEED) {
+          this.speed = data.speed;
+        }
+        if (typeof data.restitution === "number" && data.restitution >= MIN_RESTITUTION && data.restitution <= MAX_RESTITUTION) {
+          this.restitution = data.restitution;
+        }
+      }
+    } catch {
+      // localStorage が使えない場合はデフォルト値を使います
+    }
+  }
+
+  private saveSettings(): void {
+    try {
+      localStorage.setItem(
+        "b-dama-settings",
+        JSON.stringify({ speed: this.speed, restitution: this.restitution }),
+      );
+    } catch {
+      // localStorage が使えない場合は無視します
+    }
+  }
+
+  private cleanupPhysics(): void {
+    Matter.Composite.clear(this.engine.world, false);
+    this.marbles = [];
+    this.goalSensor = null;
+    this.staticBodies = [];
+    this.whiteBalls = [];
+    this.whiteballHitBy.clear();
+    this.obstacleBodies = [];
+    this.obstacleHitTimes.clear();
+    this.bumperBodies = [];
+    this.bumperHitTimes.clear();
+  }
+}
