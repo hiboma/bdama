@@ -597,14 +597,14 @@ export class Renderer {
 
   drawShelf(shelf: Shelf): void {
     const ctx = this.ctx;
-    if (shelf.points.length < 2) return;
+    const pts = shelf.curvePoints;
+    if (pts.length < 2) return;
 
+    // ベジェ曲線のパスを描画します
     ctx.beginPath();
-    const first = shelf.points[0]!;
-    ctx.moveTo(first.x, first.y);
-    for (let i = 1; i < shelf.points.length; i++) {
-      const p = shelf.points[i]!;
-      ctx.lineTo(p.x, p.y);
+    ctx.moveTo(pts[0]!.x, pts[0]!.y);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(pts[i]!.x, pts[i]!.y);
     }
 
     // Outer glow
@@ -626,8 +626,41 @@ export class Renderer {
 
     ctx.lineCap = "butt";
 
+    // 制御点ハンドル（丸いつまみ）
+    const cp = shelf.controlPoint;
+    const handlePulse = 1 + Math.sin(this.t * 3) * 0.08;
+    const handleR = 10 * handlePulse;
+
+    // 始点・終点と制御点を繋ぐガイド線
+    const p0 = shelf.points[0]!;
+    const p1 = shelf.points[shelf.points.length - 1]!;
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(cp.x, cp.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.strokeStyle = "rgba(243,156,18,0.15)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Handle circle
+    ctx.beginPath();
+    ctx.arc(cp.x, cp.y, handleR, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fill();
+    ctx.strokeStyle = COLORS.gold;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Handle inner dot
+    ctx.beginPath();
+    ctx.arc(cp.x, cp.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.gold;
+    ctx.fill();
+
     // × mark at endpoint for deletion
-    const last = shelf.points[shelf.points.length - 1]!;
+    const last = pts[pts.length - 1]!;
     const xm = last.x;
     const ym = last.y;
     ctx.beginPath();
