@@ -1248,7 +1248,7 @@ export class Game {
         const maxY = Math.max(startY, goalY) - 0.1;
         const x = 0.15 + this.getRandom() * 0.7;
         const y = minY + this.getRandom() * (maxY - minY);
-        const r = 0.03 + this.getRandom() * 0.02;
+        const r = 0.045 + this.getRandom() * 0.03;
 
         const dStart = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
         const dGoal = Math.sqrt((x - goalX) ** 2 + (y - goalY) ** 2);
