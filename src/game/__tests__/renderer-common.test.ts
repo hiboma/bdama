@@ -106,7 +106,7 @@ describe("画面状態別テスト", () => {
   });
 
   it("drawTitleScreen がタイトルを表示します", () => {
-    renderer.drawTitleScreen(W, H);
+    renderer.drawTitleScreen(W, H, null);
     const hasTitle = ctx._fillTextCalls.some(
       (c) => c.text.includes("ビー玉") || c.text.includes("ころころ"),
     );
@@ -127,13 +127,9 @@ describe("画面状態別テスト", () => {
     expect(hasRetry).toBe(true);
   });
 
-  it("drawTitleScreen が速度と弾性の値を表示します", () => {
-    renderer.drawTitleScreen(W, H, 0.4, 0.5);
-    const hasSpeed = ctx._fillTextCalls.some((c) => c.text.includes("0.4"));
-    const hasRestitution = ctx._fillTextCalls.some((c) =>
-      c.text.includes("0.5"),
-    );
-    expect(hasSpeed).toBe(true);
-    expect(hasRestitution).toBe(true);
+  it("drawTitleScreen が障害物カードを表示します", () => {
+    renderer.drawTitleScreen(W, H, "rect");
+    const hasCard = ctx._fillTextCalls.some((c) => c.text.includes("しかく"));
+    expect(hasCard).toBe(true);
   });
 });
