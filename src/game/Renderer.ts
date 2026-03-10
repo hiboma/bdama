@@ -1552,7 +1552,7 @@ export class Renderer {
     } else if (type === "cross") {
       const armLen = 22;
       const armW = 8;
-      const angle = 0; // アニメーション無効化: this.t * 1.5
+      const angle = this.t * 1.5;
 
       ctx.save();
       ctx.translate(x, previewY);
