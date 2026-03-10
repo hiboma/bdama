@@ -1,0 +1,9 @@
+{
+  "name": "ビー玉ころころ",
+  "short_name": "ビー玉",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#FFF8E1",
+  "theme_color": "#FFF8E1"
+}
