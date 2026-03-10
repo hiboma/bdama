@@ -672,7 +672,7 @@ export class Renderer {
 
     // Bounce arrows
     if (!isHit) {
-      const arrowPulse = Math.sin(this.t * 4) * 2;
+      const arrowPulse = 0; // アニメーション無効化: Math.sin(this.t * 4) * 2
       ctx.fillStyle = COLORS.white;
       ctx.globalAlpha = 0.4;
       const arrowSize = r * 0.25;
@@ -857,7 +857,7 @@ export class Renderer {
     ctx.fill();
 
     // Bounce arrows
-    const bounce = Math.sin(this.t * 4) * 2;
+    const bounce = 0; // アニメーション無効化: Math.sin(this.t * 4) * 2
     ctx.fillStyle = COLORS.goldLight;
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
@@ -1441,7 +1441,7 @@ export class Renderer {
   ): void {
     const ctx = this.ctx;
     const r = 16;
-    const scale = isSelected ? 1 + Math.sin(this.t * 3) * 0.03 : 1;
+    const scale = 1; // アニメーション無効化: isSelected ? 1 + Math.sin(this.t * 3) * 0.03 : 1
 
     ctx.save();
     ctx.translate(x, y);
@@ -1491,7 +1491,7 @@ export class Renderer {
     const previewY = y - 10;
     if (type === "rect") {
       const rw = 48, rh = 18;
-      const swayAngle = Math.sin(this.t * 0.8) * (15 * Math.PI / 180);
+      const swayAngle = 0; // アニメーション無効化: Math.sin(this.t * 0.8) * (15 * Math.PI / 180)
       ctx.save();
       ctx.translate(x, previewY);
       ctx.rotate(swayAngle);
@@ -1509,7 +1509,7 @@ export class Renderer {
       ctx.restore();
     } else if (type === "circle") {
       const baseR = 22;
-      const pulseScale = 1 + Math.sin(this.t * 1.2) * 0.2;
+      const pulseScale = 1; // アニメーション無効化: 1 + Math.sin(this.t * 1.2) * 0.2
       const cr = baseR * pulseScale;
       const grad = ctx.createRadialGradient(x - cr * 0.2, previewY - cr * 0.2, 0, x, previewY, cr);
       grad.addColorStop(0, "#90CAF9");
@@ -1528,7 +1528,7 @@ export class Renderer {
       ctx.fill();
     } else if (type === "triangle") {
       const s = 28;
-      const bobY = previewY + Math.sin(this.t * 1.0) * 6;
+      const bobY = previewY; // アニメーション無効化: previewY + Math.sin(this.t * 1.0) * 6
       const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.6);
       grad.addColorStop(0, COLORS.green);
       grad.addColorStop(1, "#1B8C4F");
@@ -1552,7 +1552,7 @@ export class Renderer {
     } else if (type === "cross") {
       const armLen = 22;
       const armW = 8;
-      const angle = this.t * 1.5;
+      const angle = 0; // アニメーション無効化: this.t * 1.5
 
       ctx.save();
       ctx.translate(x, previewY);
