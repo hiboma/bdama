@@ -54,7 +54,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>): void {
+  drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>, speed?: number, densityScale?: number): void {
     const ctx = this.ctx;
     const cx = w / 2;
     const cy = h / 2;
@@ -118,6 +118,15 @@ export class Renderer {
       this.drawButton(cx, btnY, 200, 54, "あそぶ", COLORS.red, COLORS.white, "play");
     } else {
       this.drawButton(cx, btnY, 200, 54, "あそぶ", "#E0E0E0", "#AAAAAA");
+    }
+
+    // Settings sliders
+    if (speed !== undefined && densityScale !== undefined) {
+      const sliderW = 200;
+      const speedY = btnY + 60;
+      const densityY = speedY + 56;
+      this.drawSlider(cx, speedY, sliderW, "はやさ", speed, 0.2, 1.0);
+      this.drawSlider(cx, densityY, sliderW, "おもさ", densityScale, 0.2, 3.0);
     }
 
     ctx.textAlign = "left";
@@ -920,8 +929,9 @@ export class Renderer {
 
     ctx.lineCap = "butt";
 
-    // 端点のハンドルを描画します（最初と最後のアンカーのみ）
-    const endpoints = [0, shelf.anchors.length - 1];
+    // 端点と中央のハンドルを描画します
+    const midIndex = Math.floor(shelf.anchors.length / 2);
+    const endpoints = [0, midIndex, shelf.anchors.length - 1];
     for (const j of endpoints) {
       const a = shelf.anchors[j]!;
       const handleColor = isDeleting ? COLORS.red : COLORS.gold;
@@ -1627,4 +1637,69 @@ export class Renderer {
       ctx.stroke();
     }
   }
+
+  private drawSlider(
+    cx: number,
+    y: number,
+    w: number,
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+  ): void {
+    const ctx = this.ctx;
+    const left = cx - w / 2;
+    const ratio = (value - min) / (max - min);
+    const thumbX = left + ratio * w;
+    const trackH = 6;
+    const thumbR = 12;
+
+    // Label
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.dark;
+    ctx.font = "13px 'Hachi Maru Pop', cursive";
+    ctx.fillText(label, left, y - 16);
+
+    // Value display
+    ctx.textAlign = "right";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.6;
+    ctx.font = "12px 'Hachi Maru Pop', cursive";
+    const displayVal = Math.round(value * 100) / 100;
+    ctx.fillText(`${displayVal}`, left + w, y - 16);
+    ctx.globalAlpha = 1;
+
+    // Track background
+    ctx.beginPath();
+    ctx.roundRect(left, y - trackH / 2, w, trackH, trackH / 2);
+    ctx.fillStyle = "rgba(74,32,32,0.1)";
+    ctx.fill();
+
+    // Track filled
+    ctx.beginPath();
+    ctx.roundRect(left, y - trackH / 2, ratio * w, trackH, trackH / 2);
+    ctx.fillStyle = COLORS.red;
+    ctx.globalAlpha = 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Thumb shadow
+    ctx.beginPath();
+    ctx.arc(thumbX, y + 1, thumbR, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+
+    // Thumb
+    ctx.beginPath();
+    ctx.arc(thumbX, y, thumbR, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.white;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.red;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+  }
 }
+
