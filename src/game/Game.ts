@@ -225,36 +225,39 @@ export class Game {
     }
 
     // まるの障害物を大きくなったり小さくなったりさせます
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
-      for (let i = 0; i < this.bumperBodies.length; i++) {
-        const body = this.bumperBodies[i]!;
-        const phase = this.bumperPhases[i]!;
-        const baseR = this.bumperBaseSizes[i]!;
-        const scale = 1 + Math.sin(this.elapsed * 1.2 + phase) * 0.3;
-        const currentR = baseR * scale;
-        const currentScale = currentR / (body.circleRadius ?? baseR);
-        Matter.Body.scale(body, currentScale, currentScale);
-      }
-    }
+    // TODO: 設定で有効/無効を切り替えられるようにする
+    // if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+    //   for (let i = 0; i < this.bumperBodies.length; i++) {
+    //     const body = this.bumperBodies[i]!;
+    //     const phase = this.bumperPhases[i]!;
+    //     const baseR = this.bumperBaseSizes[i]!;
+    //     const scale = 1 + Math.sin(this.elapsed * 1.2 + phase) * 0.3;
+    //     const currentR = baseR * scale;
+    //     const currentScale = currentR / (body.circleRadius ?? baseR);
+    //     Matter.Body.scale(body, currentScale, currentScale);
+    //   }
+    // }
 
     // さんかくの障害物を上下に動かします
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
-      for (let i = 0; i < this.triangleBodies.length; i++) {
-        const body = this.triangleBodies[i]!;
-        const base = this.triangleBasePositions[i]!;
-        const phase = this.trianglePhases[i]!;
-        const offsetY = Math.sin(this.elapsed * 1.0 + phase) * 40;
-        Matter.Body.setPosition(body, { x: base.x, y: base.y + offsetY });
-      }
-    }
+    // TODO: 設定で有効/無効を切り替えられるようにする
+    // if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+    //   for (let i = 0; i < this.triangleBodies.length; i++) {
+    //     const body = this.triangleBodies[i]!;
+    //     const base = this.triangleBasePositions[i]!;
+    //     const phase = this.trianglePhases[i]!;
+    //     const offsetY = Math.sin(this.elapsed * 1.0 + phase) * 40;
+    //     Matter.Body.setPosition(body, { x: base.x, y: base.y + offsetY });
+    //   }
+    // }
 
     // クロス障害物は常に回転させます
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
-      for (let i = 0; i < this.crossBodies.length; i++) {
-        const dir = this.crossDirections[i] ?? 1;
-        Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
-      }
-    }
+    // TODO: 設定で有効/無効を切り替えられるようにする
+    // if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+    //   for (let i = 0; i < this.crossBodies.length; i++) {
+    //     const dir = this.crossDirections[i] ?? 1;
+    //     Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
+    //   }
+    // }
 
     // Update goal effects
     for (const effect of this.goalEffects) {
