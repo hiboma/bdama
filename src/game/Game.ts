@@ -31,6 +31,9 @@ const MAX_SPEED = 1.0;
 const DEFAULT_RESTITUTION = 0.5;
 const MIN_RESTITUTION = 0.0;
 const MAX_RESTITUTION = 1.0;
+const DEFAULT_DENSITY = 1.0;
+const MIN_DENSITY = 0.2;
+const MAX_DENSITY = 3.0;
 const MARBLE_RADIUS = 17;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
@@ -79,6 +82,8 @@ export class Game {
   private lastTimestamp = 0;
   private speed = DEFAULT_SPEED;
   private restitution = DEFAULT_RESTITUTION;
+  private densityScale = DEFAULT_DENSITY;
+  private draggingSlider: "speed" | "density" | null = null;
   private goalsScored = 0;
   private goalEffects: GoalEffect[] = [];
   private breakEffects: BreakEffect[] = [];
@@ -287,7 +292,7 @@ export class Game {
     this.renderer.drawBackground(this.width, this.height);
 
     if (this.state === "title") {
-      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles);
+      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles, this.speed, this.densityScale);
       return;
     }
 
@@ -744,7 +749,7 @@ export class Game {
       const body = Matter.Bodies.rectangle(cx, cy, segLen + 2, 10, {
         isStatic: true,
         angle,
-        friction: 0.3,
+        friction: 0.05,
         restitution: 0.2,
         label: "shelf",
         render: { visible: false },
@@ -863,13 +868,44 @@ export class Game {
   }
 
   /** 端点がタップされたかを判定し、ドラッグを開始します */
+  private getTitleSliderLayout(): { cx: number; cy: number; sliderW: number; speedY: number; densityY: number } {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    const cardH = 110;
+    const cardY = cy + 30;
+    const btnY = cardY + cardH / 2 + 60;
+    const sliderW = 200;
+    const speedY = btnY + 60;
+    const densityY = speedY + 56;
+    return { cx, cy, sliderW, speedY, densityY };
+  }
+
+  private hitSlider(x: number, y: number, sliderCx: number, sliderY: number, sliderW: number): boolean {
+    return Math.abs(x - sliderCx) < sliderW / 2 + 16 && Math.abs(y - sliderY) < 20;
+  }
+
   private handleDragStart(x: number, y: number): boolean {
+    if (this.state === "title") {
+      const layout = this.getTitleSliderLayout();
+      if (this.hitSlider(x, y, layout.cx, layout.speedY, layout.sliderW)) {
+        this.draggingSlider = "speed";
+        this.updateSliderValue(x, layout);
+        return true;
+      }
+      if (this.hitSlider(x, y, layout.cx, layout.densityY, layout.sliderW)) {
+        this.draggingSlider = "density";
+        this.updateSliderValue(x, layout);
+        return true;
+      }
+    }
+
     if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return false;
 
     for (let i = 0; i < this.shelves.length; i++) {
       const shelf = this.shelves[i]!;
-      // 端点（最初と最後）のみドラッグ可能です
-      const endpoints = [0, shelf.anchors.length - 1];
+      // 端点と中央のアンカーをドラッグ可能にします
+      const midIndex = Math.floor(shelf.anchors.length / 2);
+      const endpoints = [0, midIndex, shelf.anchors.length - 1];
       for (const j of endpoints) {
         const a = shelf.anchors[j]!;
         const dx = x - a.x;
@@ -892,7 +928,23 @@ export class Game {
   }
 
   /** ドラッグ中にアンカーを移動し、棚を再生成します */
+  private updateSliderValue(x: number, layout: { cx: number; sliderW: number }): void {
+    const left = layout.cx - layout.sliderW / 2;
+    const ratio = Math.max(0, Math.min(1, (x - left) / layout.sliderW));
+    if (this.draggingSlider === "speed") {
+      this.speed = MIN_SPEED + ratio * (MAX_SPEED - MIN_SPEED);
+    } else if (this.draggingSlider === "density") {
+      this.densityScale = MIN_DENSITY + ratio * (MAX_DENSITY - MIN_DENSITY);
+    }
+    this.saveSettings();
+  }
+
   private handleDragMove(x: number, y: number): void {
+    if (this.draggingSlider) {
+      const layout = this.getTitleSliderLayout();
+      this.updateSliderValue(x, layout);
+      return;
+    }
     if (this.draggingShelfIndex < 0 || this.draggingAnchorIndex < 0) return;
     const shelf = this.shelves[this.draggingShelfIndex];
     if (!shelf) return;
@@ -906,6 +958,10 @@ export class Game {
 
   /** ドラッグ終了時の処理です */
   private handleDragEnd(): void {
+    if (this.draggingSlider) {
+      this.draggingSlider = null;
+      return;
+    }
     this.cancelLongPress();
     this.draggingShelfIndex = -1;
     this.draggingAnchorIndex = -1;
@@ -989,7 +1045,7 @@ export class Game {
     const marble = Matter.Bodies.circle(startX + offsetX, startY, MARBLE_RADIUS, {
       restitution: trait.restitution * (this.restitution / DEFAULT_RESTITUTION),
       friction: trait.friction,
-      density: trait.density,
+      density: trait.density * this.densityScale,
       label: "marble",
       render: { visible: false },
     });
@@ -1426,7 +1482,7 @@ export class Game {
           const h = 0.03 + this.getRandom() * 0.04;
           this.generatedObstacles.push({ x: ox, y: oy, w, h });
         } else if (type === "circle") {
-          const r = 0.0675 + this.getRandom() * 0.045;
+          const r = 0.045 + this.getRandom() * 0.03;
           this.generatedBumpers.push({ x: ox, y: oy, r });
         } else if (type === "triangle") {
           const size = 0.0675 + this.getRandom() * 0.045;
@@ -1630,16 +1686,31 @@ export class Game {
     try {
       const saved = localStorage.getItem("b-dama-settings");
       if (saved) {
-        const data = JSON.parse(saved) as { speed?: number; restitution?: number };
+        const data = JSON.parse(saved) as { speed?: number; restitution?: number; densityScale?: number };
         if (typeof data.speed === "number" && data.speed >= MIN_SPEED && data.speed <= MAX_SPEED) {
           this.speed = data.speed;
         }
         if (typeof data.restitution === "number" && data.restitution >= MIN_RESTITUTION && data.restitution <= MAX_RESTITUTION) {
           this.restitution = data.restitution;
         }
+        if (typeof data.densityScale === "number" && data.densityScale >= MIN_DENSITY && data.densityScale <= MAX_DENSITY) {
+          this.densityScale = data.densityScale;
+        }
       }
     } catch {
       // localStorage が使えない場合はデフォルト値を使います
+    }
+  }
+
+  private saveSettings(): void {
+    try {
+      localStorage.setItem("b-dama-settings", JSON.stringify({
+        speed: this.speed,
+        restitution: this.restitution,
+        densityScale: this.densityScale,
+      }));
+    } catch {
+      // localStorage が使えない場合は無視します
     }
   }
 
