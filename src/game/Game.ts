@@ -195,34 +195,35 @@ export class Game {
     }
 
     // しかく障害物をゆらゆら揺らします
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
-      const MAX_ANGLE = (20 * Math.PI) / 180;
-      for (let i = 0; i < this.obstacleBodies.length; i++) {
-        const body = this.obstacleBodies[i]!;
-        const base = this.obstacleBasePositions[i]!;
-        const pivot = this.obstaclePivots[i]!;
-        const phase = this.obstaclePhases[i]!;
-        const speed = this.obstacleSpeeds[i]!;
-        const angle = Math.sin(this.elapsed * speed + phase) * MAX_ANGLE;
-        const obs = this.generatedObstacles[i]!;
-        const halfW = (obs.w * this.width) / 2;
-
-        let px = base.x;
-        const py = base.y;
-        if (pivot === "left") px = base.x - halfW;
-        else if (pivot === "right") px = base.x + halfW;
-
-        const dx = base.x - px;
-        const dy = base.y - py;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const newX = px + dx * cos - dy * sin;
-        const newY = py + dx * sin + dy * cos;
-
-        Matter.Body.setAngle(body, angle);
-        Matter.Body.setPosition(body, { x: newX, y: newY });
-      }
-    }
+    // TODO: 設定で有効/無効を切り替えられるようにする
+    // if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+    //   const MAX_ANGLE = (20 * Math.PI) / 180;
+    //   for (let i = 0; i < this.obstacleBodies.length; i++) {
+    //     const body = this.obstacleBodies[i]!;
+    //     const base = this.obstacleBasePositions[i]!;
+    //     const pivot = this.obstaclePivots[i]!;
+    //     const phase = this.obstaclePhases[i]!;
+    //     const speed = this.obstacleSpeeds[i]!;
+    //     const angle = Math.sin(this.elapsed * speed + phase) * MAX_ANGLE;
+    //     const obs = this.generatedObstacles[i]!;
+    //     const halfW = (obs.w * this.width) / 2;
+    //
+    //     let px = base.x;
+    //     const py = base.y;
+    //     if (pivot === "left") px = base.x - halfW;
+    //     else if (pivot === "right") px = base.x + halfW;
+    //
+    //     const dx = base.x - px;
+    //     const dy = base.y - py;
+    //     const cos = Math.cos(angle);
+    //     const sin = Math.sin(angle);
+    //     const newX = px + dx * cos - dy * sin;
+    //     const newY = py + dx * sin + dy * cos;
+    //
+    //     Matter.Body.setAngle(body, angle);
+    //     Matter.Body.setPosition(body, { x: newX, y: newY });
+    //   }
+    // }
 
     // まるの障害物を大きくなったり小さくなったりさせます
     // TODO: 設定で有効/無効を切り替えられるようにする
@@ -251,13 +252,12 @@ export class Game {
     // }
 
     // クロス障害物は常に回転させます
-    // TODO: 設定で有効/無効を切り替えられるようにする
-    // if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
-    //   for (let i = 0; i < this.crossBodies.length; i++) {
-    //     const dir = this.crossDirections[i] ?? 1;
-    //     Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
-    //   }
-    // }
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.crossBodies.length; i++) {
+        const dir = this.crossDirections[i] ?? 1;
+        Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
+      }
+    }
 
     // Update goal effects
     for (const effect of this.goalEffects) {
