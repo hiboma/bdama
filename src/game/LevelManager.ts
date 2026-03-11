@@ -53,6 +53,34 @@ const LEVELS: LevelData[] = [
     trampolines: [],
     spinPlatforms: [],
   },
+  {
+    level: 2,
+    start: { x: 0.9, y: 0.08 },
+    goal: { x: 0.15, y: 0.88 },
+    maxShelves: 3,
+    obstacles: [],
+    randomObstacles: 3,
+    bumpers: [],
+    randomBumpers: 2,
+    whiteballCount: 2,
+    enemies: [],
+    trampolines: [],
+    spinPlatforms: [],
+  },
+  {
+    level: 3,
+    start: { x: 0.5, y: 0.05 },
+    goal: { x: 0.5, y: 0.92 },
+    maxShelves: 4,
+    obstacles: [],
+    randomObstacles: 4,
+    bumpers: [],
+    randomBumpers: 3,
+    whiteballCount: 2,
+    enemies: [],
+    trampolines: [],
+    spinPlatforms: [],
+  },
 ];
 
 export class LevelManager {
@@ -69,5 +97,15 @@ export class LevelManager {
 
   totalLevels(): number {
     return this.levels.length;
+  }
+
+  hasNext(): boolean {
+    return this.currentLevel < this.levels.length;
+  }
+
+  nextLevel(): void {
+    if (this.hasNext()) {
+      this.currentLevel++;
+    }
   }
 }

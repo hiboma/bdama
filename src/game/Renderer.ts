@@ -133,7 +133,7 @@ export class Renderer {
     ctx.textAlign = "left";
   }
 
-  drawClearScreen(w: number, h: number, goalsScored: number): void {
+  drawClearScreen(w: number, h: number, goalsScored: number, hasNextLevel: boolean): void {
     const ctx = this.ctx;
     const cx = w / 2;
     const cy = h / 2;
@@ -186,8 +186,14 @@ export class Renderer {
     this.drawStar(cx, cy + 60, 30, star2);
     this.drawStar(cx + 50, cy + 70, 26, star3);
 
-    this.drawButton(cx, cy + 125, 200, 54, "もういちど", COLORS.red, COLORS.white, "retry");
-    this.drawButton(cx, cy + 190, 200, 48, "タイトルへ", COLORS.white, COLORS.dark);
+    if (hasNextLevel) {
+      this.drawButton(cx, cy + 125, 200, 54, "つぎへ", COLORS.blue, COLORS.white, "next");
+      this.drawButton(cx, cy + 190, 200, 48, "もういちど", COLORS.red, COLORS.white, "retry");
+      this.drawButton(cx, cy + 250, 200, 48, "タイトルへ", COLORS.white, COLORS.dark);
+    } else {
+      this.drawButton(cx, cy + 125, 200, 54, "もういちど", COLORS.red, COLORS.white, "retry");
+      this.drawButton(cx, cy + 190, 200, 48, "タイトルへ", COLORS.white, COLORS.dark);
+    }
   }
 
   drawFailScreen(w: number, h: number): void {
