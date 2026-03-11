@@ -114,7 +114,7 @@ describe("画面状態別テスト", () => {
   });
 
   it("drawClearScreen がスコアを表示します", () => {
-    renderer.drawClearScreen(W, H, 5);
+    renderer.drawClearScreen(W, H, 5, true);
     const hasScore = ctx._fillTextCalls.some((c) => c.text.includes("5"));
     expect(hasScore).toBe(true);
   });
