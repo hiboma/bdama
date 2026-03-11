@@ -25,15 +25,10 @@ export interface BreakEffect {
 }
 
 const TIME_LIMIT = 30;
-const DEFAULT_SPEED = 0.4;
-const MIN_SPEED = 0.2;
-const MAX_SPEED = 1.0;
-const DEFAULT_RESTITUTION = 0.5;
-const MIN_RESTITUTION = 0.0;
-const MAX_RESTITUTION = 1.0;
-const DEFAULT_DENSITY = 1.0;
-const MIN_DENSITY = 0.2;
-const MAX_DENSITY = 3.0;
+// 速度ステップ: 0=おそい, 1=ふつう(1x), 2=はやい(2x), 3=もっと(3x)
+const SPEED_STEPS = [0.2, 0.4, 0.8, 1.2];
+// はずみやすさステップ: 0=ぺたり, 1=すこし, 2=ふつう, 3=すごく
+const RESTITUTION_STEPS = [0.1, 0.3, 0.5, 1.0];
 const MARBLE_RADIUS = 17;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
@@ -54,13 +49,13 @@ function createSeededRandom(seed: number): () => number {
 // Color index: 0=Red, 1=Orange, 2=Yellow, 3=Green, 4=Blue, 5=Indigo, 6=Violet
 // Each: { restitution, density, friction, label }
 const MARBLE_TRAITS: { restitution: number; density: number; friction: number; label: string }[] = [
-  { restitution: 0.9,  density: 0.001, friction: 0.02, label: "はねる" },    // Red: bouncy & light
-  { restitution: 0.7,  density: 0.0015, friction: 0.03, label: "はやい" },   // Orange: fast
-  { restitution: 0.5,  density: 0.002, friction: 0.05, label: "ふつう" },    // Yellow: standard
-  { restitution: 0.4,  density: 0.003, friction: 0.08, label: "おもい" },    // Green: heavy
-  { restitution: 0.3,  density: 0.004, friction: 0.10, label: "ずっしり" },  // Blue: very heavy
-  { restitution: 0.6,  density: 0.001, friction: 0.01, label: "すべる" },    // Indigo: slippery
-  { restitution: 1.0,  density: 0.0008, friction: 0.02, label: "スーパー" }, // Violet: super bouncy
+  { restitution: 0.9,  density: 0.001,  friction: 0.001, label: "はねる" },    // Red: bouncy & light
+  { restitution: 0.7,  density: 0.0015, friction: 0.001, label: "はやい" },    // Orange: fast
+  { restitution: 0.5,  density: 0.002,  friction: 0.001, label: "ふつう" },    // Yellow: standard
+  { restitution: 0.4,  density: 0.003,  friction: 0.001, label: "おもい" },    // Green: heavy
+  { restitution: 0.3,  density: 0.004,  friction: 0.001, label: "ずっしり" },  // Blue: very heavy
+  { restitution: 0.6,  density: 0.001,  friction: 0.001, label: "すべる" },    // Indigo: slippery
+  { restitution: 0.8,  density: 0.0008, friction: 0.001, label: "スーパー" },  // Violet: super bouncy
 ];
 
 export class Game {
@@ -80,10 +75,9 @@ export class Game {
   private timeRemaining = TIME_LIMIT;
   private timerStarted = false;
   private lastTimestamp = 0;
-  private speed = DEFAULT_SPEED;
-  private restitution = DEFAULT_RESTITUTION;
-  private densityScale = DEFAULT_DENSITY;
-  private draggingSlider: "speed" | "density" | null = null;
+  private speedStep = 1;
+  private restitutionStep = 2;
+
   private goalsScored = 0;
   private goalEffects: GoalEffect[] = [];
   private breakEffects: BreakEffect[] = [];
@@ -193,8 +187,15 @@ export class Game {
     }
 
     if (this.state === "rolling") {
-      const timeScale = this.speed / DEFAULT_SPEED;
-      Matter.Engine.update(this.engine, (1000 / 60) * timeScale);
+      const timeScale = SPEED_STEPS[this.speedStep]! / SPEED_STEPS[1]!;
+      // トンネリング防止: 1回の更新量が基準(1000/60 ≈ 16.7ms)を超える場合は分割します
+      const baseDt = 1000 / 60;
+      const totalDt = baseDt * timeScale;
+      const subSteps = Math.ceil(timeScale);
+      const stepDt = totalDt / subSteps;
+      for (let i = 0; i < subSteps; i++) {
+        Matter.Engine.update(this.engine, stepDt);
+      }
       this.checkGoal();
       this.checkOutOfBounds();
     }
@@ -292,7 +293,7 @@ export class Game {
     this.renderer.drawBackground(this.width, this.height);
 
     if (this.state === "title") {
-      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles, this.speed, this.densityScale);
+      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles, this.speedStep, this.restitutionStep);
       return;
     }
 
@@ -536,12 +537,30 @@ export class Game {
         this.sound.tap();
         this.state = "playing";
         this.levelManager.loadLevel(1);
+        this.randomizeStartGoalX();
         this.shelves = [];
         this.timeRemaining = TIME_LIMIT;
         this.timerStarted = false;
         this.levelStartTime = performance.now();
         this.generateObstacles();
         this.setupObstaclesAndWhiteBalls();
+        return;
+      }
+
+      // ステップセレクターのタップ判定
+      const layout = this.getStepSelectorLayout();
+      const speedHit = this.hitStepSelector(x, y, layout.cx, layout.speedY, SPEED_STEPS.length);
+      if (speedHit >= 0) {
+        this.sound.tap();
+        this.speedStep = speedHit;
+        this.saveSettings();
+        return;
+      }
+      const bounceHit = this.hitStepSelector(x, y, layout.cx, layout.restitutionY, RESTITUTION_STEPS.length);
+      if (bounceHit >= 0) {
+        this.sound.tap();
+        this.restitutionStep = bounceHit;
+        this.saveSettings();
         return;
       }
       return;
@@ -749,7 +768,7 @@ export class Game {
       const body = Matter.Bodies.rectangle(cx, cy, segLen + 2, 10, {
         isStatic: true,
         angle,
-        friction: 0.05,
+        friction: 0.001,
         restitution: 0.2,
         label: "shelf",
         render: { visible: false },
@@ -867,37 +886,33 @@ export class Game {
     return result;
   }
 
-  /** 端点がタップされたかを判定し、ドラッグを開始します */
-  private getTitleSliderLayout(): { cx: number; cy: number; sliderW: number; speedY: number; densityY: number } {
+  /** ステップセレクターのレイアウト情報を返します */
+  private getStepSelectorLayout(): { cx: number; speedY: number; restitutionY: number } {
     const cx = this.width / 2;
     const cy = this.height / 2;
     const cardH = 110;
     const cardY = cy + 30;
     const btnY = cardY + cardH / 2 + 60;
-    const sliderW = 200;
-    const speedY = btnY + 60;
-    const densityY = speedY + 56;
-    return { cx, cy, sliderW, speedY, densityY };
+    const speedY = btnY + 100;
+    const restitutionY = speedY + 60;
+    return { cx, speedY, restitutionY };
   }
 
-  private hitSlider(x: number, y: number, sliderCx: number, sliderY: number, sliderW: number): boolean {
-    return Math.abs(x - sliderCx) < sliderW / 2 + 16 && Math.abs(y - sliderY) < 20;
+  /** ステップセレクターのタップ判定を行い、タップされたステップ番号を返します */
+  private hitStepSelector(x: number, y: number, selectorCx: number, selectorY: number, stepCount: number): number {
+    if (Math.abs(y - selectorY) > 14) return -1;
+    const btnW = 58;
+    const btnGap = 6;
+    const btnAreaW = btnW * stepCount + btnGap * (stepCount - 1);
+    const btnStartX = selectorCx - btnAreaW / 2;
+    for (let i = 0; i < stepCount; i++) {
+      const bx = btnStartX + i * (btnW + btnGap);
+      if (x >= bx && x <= bx + btnW) return i;
+    }
+    return -1;
   }
 
   private handleDragStart(x: number, y: number): boolean {
-    if (this.state === "title") {
-      const layout = this.getTitleSliderLayout();
-      if (this.hitSlider(x, y, layout.cx, layout.speedY, layout.sliderW)) {
-        this.draggingSlider = "speed";
-        this.updateSliderValue(x, layout);
-        return true;
-      }
-      if (this.hitSlider(x, y, layout.cx, layout.densityY, layout.sliderW)) {
-        this.draggingSlider = "density";
-        this.updateSliderValue(x, layout);
-        return true;
-      }
-    }
 
     if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return false;
 
@@ -927,24 +942,7 @@ export class Game {
     return false;
   }
 
-  /** ドラッグ中にアンカーを移動し、棚を再生成します */
-  private updateSliderValue(x: number, layout: { cx: number; sliderW: number }): void {
-    const left = layout.cx - layout.sliderW / 2;
-    const ratio = Math.max(0, Math.min(1, (x - left) / layout.sliderW));
-    if (this.draggingSlider === "speed") {
-      this.speed = MIN_SPEED + ratio * (MAX_SPEED - MIN_SPEED);
-    } else if (this.draggingSlider === "density") {
-      this.densityScale = MIN_DENSITY + ratio * (MAX_DENSITY - MIN_DENSITY);
-    }
-    this.saveSettings();
-  }
-
   private handleDragMove(x: number, y: number): void {
-    if (this.draggingSlider) {
-      const layout = this.getTitleSliderLayout();
-      this.updateSliderValue(x, layout);
-      return;
-    }
     if (this.draggingShelfIndex < 0 || this.draggingAnchorIndex < 0) return;
     const shelf = this.shelves[this.draggingShelfIndex];
     if (!shelf) return;
@@ -958,10 +956,6 @@ export class Game {
 
   /** ドラッグ終了時の処理です */
   private handleDragEnd(): void {
-    if (this.draggingSlider) {
-      this.draggingSlider = null;
-      return;
-    }
     this.cancelLongPress();
     this.draggingShelfIndex = -1;
     this.draggingAnchorIndex = -1;
@@ -1043,9 +1037,9 @@ export class Game {
     const trait = MARBLE_TRAITS[colorIndex]!;
 
     const marble = Matter.Bodies.circle(startX + offsetX, startY, MARBLE_RADIUS, {
-      restitution: trait.restitution * (this.restitution / DEFAULT_RESTITUTION),
+      restitution: trait.restitution * (RESTITUTION_STEPS[this.restitutionStep]! / RESTITUTION_STEPS[2]!),
       friction: trait.friction,
-      density: trait.density * this.densityScale,
+      density: trait.density,
       label: "marble",
       render: { visible: false },
     });
@@ -1077,7 +1071,7 @@ export class Game {
         obs.h * this.height,
         {
           isStatic: true,
-          friction: 0.3,
+          friction: 0.001,
           restitution: 0.2,
           label: "obstacle",
           render: { visible: false },
@@ -1105,7 +1099,7 @@ export class Game {
         {
           isStatic: true,
           restitution: 1.2,
-          friction: 0.01,
+          friction: 0.001,
           label: "bumper",
           render: { visible: false },
         },
@@ -1131,7 +1125,7 @@ export class Game {
         {
           isStatic: true,
           restitution: 0.8,
-          friction: 0.2,
+          friction: 0.001,
           label: "triangle",
           render: { visible: false },
         },
@@ -1160,7 +1154,7 @@ export class Game {
         parts: [horizontal, vertical],
         isStatic: true,
         restitution: 0.6,
-        friction: 0.1,
+        friction: 0.001,
         label: "cross",
         render: { visible: false },
       });
@@ -1436,6 +1430,14 @@ export class Game {
     return Math.random();
   }
 
+  /** スタートとゴールのX位置をランダムに設定します */
+  private randomizeStartGoalX(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+    level.start.x = 0.1 + Math.random() * 0.8;
+    level.goal.x = 0.1 + Math.random() * 0.8;
+  }
+
   private generateObstacles(): void {
     const level = this.levelManager.current();
     if (!level) return;
@@ -1609,7 +1611,7 @@ export class Game {
 
     const wb = Matter.Bodies.circle(whiteX, whiteY, MARBLE_RADIUS, {
       restitution: 0.5,
-      friction: 0.01,
+      friction: 0.001,
       density: 0.002,
       label: "whiteball",
       render: { visible: false },
@@ -1686,15 +1688,12 @@ export class Game {
     try {
       const saved = localStorage.getItem("b-dama-settings");
       if (saved) {
-        const data = JSON.parse(saved) as { speed?: number; restitution?: number; densityScale?: number };
-        if (typeof data.speed === "number" && data.speed >= MIN_SPEED && data.speed <= MAX_SPEED) {
-          this.speed = data.speed;
+        const data = JSON.parse(saved) as { speedStep?: number; restitutionStep?: number };
+        if (typeof data.speedStep === "number" && data.speedStep >= 0 && data.speedStep < SPEED_STEPS.length) {
+          this.speedStep = data.speedStep;
         }
-        if (typeof data.restitution === "number" && data.restitution >= MIN_RESTITUTION && data.restitution <= MAX_RESTITUTION) {
-          this.restitution = data.restitution;
-        }
-        if (typeof data.densityScale === "number" && data.densityScale >= MIN_DENSITY && data.densityScale <= MAX_DENSITY) {
-          this.densityScale = data.densityScale;
+        if (typeof data.restitutionStep === "number" && data.restitutionStep >= 0 && data.restitutionStep < RESTITUTION_STEPS.length) {
+          this.restitutionStep = data.restitutionStep;
         }
       }
     } catch {
@@ -1705,9 +1704,8 @@ export class Game {
   private saveSettings(): void {
     try {
       localStorage.setItem("b-dama-settings", JSON.stringify({
-        speed: this.speed,
-        restitution: this.restitution,
-        densityScale: this.densityScale,
+        speedStep: this.speedStep,
+        restitutionStep: this.restitutionStep,
       }));
     } catch {
       // localStorage が使えない場合は無視します
