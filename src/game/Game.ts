@@ -155,6 +155,17 @@ export class Game {
     this.input.onDragStart((x, y) => this.handleDragStart(x, y));
     this.input.onDragMove((x, y) => this.handleDragMove(x, y));
     this.input.onDragEnd(() => this.handleDragEnd());
+    // デバッグ用: スペースキーでビー玉を転がします
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+          this.sound.roll();
+          this.addMarble();
+        }
+      }
+    });
+
     this.lastTimestamp = performance.now();
     this.loop();
   }
@@ -298,7 +309,7 @@ export class Game {
     }
 
     if (this.state === "clear") {
-      this.renderer.drawClearScreen(this.width, this.height, this.goalsScored);
+      this.renderer.drawClearScreen(this.width, this.height, this.goalsScored, this.levelManager.hasNext());
       return;
     }
 
@@ -571,17 +582,39 @@ export class Game {
       const centerY = this.height / 2;
 
       if (this.state === "clear") {
-        // もういちどボタン
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
-          this.sound.tap();
-          this.resetLevel();
-          return;
-        }
-        // タイトルへボタン
-        if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 190)) < 30) {
-          this.sound.tap();
-          this.goToTitle();
-          return;
+        const hasNext = this.levelManager.hasNext();
+        if (hasNext) {
+          // つぎへボタン
+          if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
+            this.sound.tap();
+            this.goToNextLevel();
+            return;
+          }
+          // もういちどボタン
+          if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 190)) < 30) {
+            this.sound.tap();
+            this.resetLevel();
+            return;
+          }
+          // タイトルへボタン
+          if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 250)) < 30) {
+            this.sound.tap();
+            this.goToTitle();
+            return;
+          }
+        } else {
+          // もういちどボタン
+          if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 125)) < 30) {
+            this.sound.tap();
+            this.resetLevel();
+            return;
+          }
+          // タイトルへボタン
+          if (Math.abs(x - centerX) < 110 && Math.abs(y - (centerY + 190)) < 30) {
+            this.sound.tap();
+            this.goToTitle();
+            return;
+          }
         }
       } else {
         // リトライボタン
@@ -1349,6 +1382,11 @@ export class Game {
     this.cleanupPhysics();
     this.state = "title";
     this.selectedObstacles.clear();
+  }
+
+  private goToNextLevel(): void {
+    this.levelManager.nextLevel();
+    this.resetLevel();
   }
 
   private resetLevel(): void {
