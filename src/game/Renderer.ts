@@ -1,5 +1,5 @@
 import type { Shelf } from "../entities/Shelf";
-import type { GoalEffect, BreakEffect, ObstacleType } from "./Game";
+import type { GoalEffect, BreakEffect, ObstacleType, GameMode } from "./Game";
 
 const COLORS = {
   red: "#E74C3C",
@@ -10,6 +10,7 @@ const COLORS = {
   blueDark: "#1F6DA0",
   green: "#27AE60",
   cream: "#FFF8E1",
+  tsumikiCream: "#E8F0FE",
   dark: "#4a2020",
   white: "#ffffff",
 };
@@ -39,98 +40,152 @@ export class Renderer {
     return this.frame / 60;
   }
 
-  drawBackground(w: number, h: number): void {
+  drawBackground(w: number, h: number, gameMode: GameMode = "drawing"): void {
     this.frame++;
     const ctx = this.ctx;
-    ctx.fillStyle = COLORS.cream;
-    ctx.fillRect(0, 0, w, h);
 
-    // Circus tent stripes
-    ctx.globalAlpha = 0.04;
-    for (let x = 0; x < w; x += 40) {
-      ctx.fillStyle = COLORS.red;
-      ctx.fillRect(x, 0, 20, h);
+    if (gameMode === "tsumiki") {
+      ctx.fillStyle = COLORS.tsumikiCream;
+      ctx.fillRect(0, 0, w, h);
+      // ゴールドストライプ
+      ctx.globalAlpha = 0.04;
+      for (let x = 0; x < w; x += 40) {
+        ctx.fillStyle = COLORS.gold;
+        ctx.fillRect(x, 0, 20, h);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = COLORS.cream;
+      ctx.fillRect(0, 0, w, h);
+      // Circus tent stripes
+      ctx.globalAlpha = 0.04;
+      for (let x = 0; x < w; x += 40) {
+        ctx.fillStyle = COLORS.red;
+        ctx.fillRect(x, 0, 20, h);
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
   }
 
-  drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>, speedStep?: number, restitutionStep?: number): void {
+  drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>, speedStep?: number, restitutionStep?: number, gameMode: GameMode = "drawing", tsumikiFreeMode = false): void {
     const ctx = this.ctx;
     const cx = w / 2;
     const cy = h / 2;
 
     // Floating marble
     const bounce = Math.sin(this.t * 2) * 8;
-    this.drawMarble(cx, cy - 160 + bounce, 45);
+    this.drawMarble(cx, cy - 200 + bounce, 35);
 
     // Title
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "rgba(74,32,32,0.1)";
-    ctx.font = "30px 'Hachi Maru Pop', cursive";
-    ctx.fillText("ビー玉", cx + 2, cy - 100);
-    ctx.fillText("ころころ", cx + 2, cy - 66);
+    ctx.font = "24px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ビー玉", cx + 2, cy - 155);
+    ctx.fillText("ころころ", cx + 2, cy - 128);
     ctx.fillStyle = COLORS.red;
-    ctx.font = "30px 'Hachi Maru Pop', cursive";
-    ctx.fillText("ビー玉", cx, cy - 102);
-    ctx.fillText("ころころ", cx, cy - 68);
+    ctx.font = "24px 'Hachi Maru Pop', cursive";
+    ctx.fillText("ビー玉", cx, cy - 157);
+    ctx.fillText("ころころ", cx, cy - 130);
 
-    // Subtitle
-    ctx.fillStyle = COLORS.dark;
-    ctx.globalAlpha = 0.5;
-    ctx.font = "12px 'Hachi Maru Pop', cursive";
-    ctx.fillText("じゃまものを えらんでね", cx, cy - 36);
-    ctx.globalAlpha = 1;
+    // モード選択ボタン
+    const modeY = cy - 100;
+    const modeBtnW = 120;
+    const modeBtnH = 36;
+    const modeGap = 10;
+    const drawingX = cx - modeBtnW / 2 - modeGap / 2;
+    const tsumikiX = cx + modeBtnW / 2 + modeGap / 2;
 
-    // Obstacle cards
-    const cardW = 80;
-    const cardH = 110;
-    const gap = 8;
-    const cardCount = 4;
-    const totalW = cardW * cardCount + gap * (cardCount - 1);
-    const startX = cx - totalW / 2 + cardW / 2;
-    const cardY = cy + 30;
+    this.drawModeButton(drawingX, modeY, modeBtnW, modeBtnH, "おえかき", gameMode === "drawing");
+    this.drawModeButton(tsumikiX, modeY, modeBtnW, modeBtnH, "つみき", gameMode === "tsumiki");
+
+    // Obstacle cards - 2x2 グリッド
+    const cardW = 100;
+    const cardH = 72;
+    const gapX = 12;
+    const gapY = 10;
+    const gridTop = modeY + 32;
     const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
     const labels = ["しかく", "まる", "さんかく", "くるくる"];
 
-    for (let i = 0; i < cardCount; i++) {
-      const cardX = startX + i * (cardW + gap);
+    for (let i = 0; i < 4; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const cardX = cx + (col === 0 ? -(cardW / 2 + gapX / 2) : (cardW / 2 + gapX / 2));
+      const cardY = gridTop + row * (cardH + gapY) + cardH / 2;
       const isSelected = selectedObstacles.has(types[i]!);
       this.drawObstacleCard(cardX, cardY, cardW, cardH, types[i]!, labels[i]!, isSelected);
     }
 
-    // Feedback message
-    const msgY = cardY + cardH / 2 + 22;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "bold 13px 'Hachi Maru Pop', cursive";
-    if (selectedObstacles.size === 0) {
-      ctx.fillStyle = "#3a2020";
-      ctx.fillText("いくつでも えらべるよ！", cx, msgY);
-    } else {
-      ctx.fillStyle = "#c07000";
-      ctx.fillText(`${selectedObstacles.size}こ えらんだ！`, cx, msgY);
-    }
+    const gridBottom = gridTop + 2 * (cardH + gapY);
 
     // Play button
-    const btnY = cardY + cardH / 2 + 60;
+    const btnY = gridBottom + 20;
     if (selectedObstacles.size > 0) {
-      this.drawButton(cx, btnY, 200, 54, "あそぶ", COLORS.red, COLORS.white, "play");
+      this.drawButton(cx, btnY, 200, 50, "あそぶ", COLORS.red, COLORS.white, "play");
     } else {
-      this.drawButton(cx, btnY, 200, 54, "あそぶ", "#E0E0E0", "#AAAAAA");
+      this.drawButton(cx, btnY, 200, 50, "あそぶ", "#E0E0E0", "#AAAAAA");
     }
 
-    // Settings step selectors
+    // Settings - 背景パネル付き
     if (speedStep !== undefined && restitutionStep !== undefined) {
-      const speedY = btnY + 100;
-      const restitutionY = speedY + 60;
+      const panelTop = btnY + 34;
+      const panelH = gameMode === "tsumiki" ? 105 : 78;
+
+      // パネル背景
+      ctx.beginPath();
+      ctx.roundRect(cx - 140, panelTop - 6, 280, panelH, 12);
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.fill();
+
+      const speedY = panelTop + 12;
+      const restitutionY = speedY + 34;
       const speedLabels = ["おそい", "ふつう", "はやい", "もっと"];
       const bounceLabels = ["ぺたり", "すこし", "ふつう", "すごく"];
       this.drawStepSelector(cx, speedY, "はやさ", speedStep, speedLabels);
       this.drawStepSelector(cx, restitutionY, "はずみ", restitutionStep, bounceLabels);
+
+      // 積み木モード: じゆうトグル
+      if (gameMode === "tsumiki") {
+        const freeY = restitutionY + 32;
+        this.drawToggle(cx, freeY, "じゆう", tsumikiFreeMode);
+      }
     }
 
     ctx.textAlign = "left";
+  }
+
+  private drawModeButton(x: number, y: number, w: number, h: number, label: string, isSelected: boolean): void {
+    const ctx = this.ctx;
+    const r = h / 2;
+
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, r);
+
+    if (isSelected) {
+      ctx.fillStyle = COLORS.blue;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.blueDark;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.white;
+    } else {
+      ctx.fillStyle = COLORS.white;
+      ctx.fill();
+      ctx.strokeStyle = "#CCCCCC";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.dark;
+      ctx.globalAlpha = 0.6;
+    }
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 16px 'Hachi Maru Pop', cursive";
+    ctx.fillText(label, x, y);
+    ctx.globalAlpha = 1;
   }
 
   drawClearScreen(w: number, h: number, goalsScored: number, hasNextLevel: boolean): void {
@@ -1016,6 +1071,7 @@ export class Renderer {
     w: number,
     timeRemaining: number,
     timerStarted: boolean,
+    timeLimit = 30,
   ): void {
     const ctx = this.ctx;
 
@@ -1025,7 +1081,7 @@ export class Renderer {
     const timerR = 20;
     const seconds = Math.ceil(timeRemaining);
     const isUrgent = timerStarted && timeRemaining <= 10;
-    const progress = timerStarted ? timeRemaining / 30 : 1;
+    const progress = timerStarted ? timeRemaining / timeLimit : 1;
 
     // Background circle
     ctx.beginPath();
@@ -1066,7 +1122,7 @@ export class Renderer {
       ctx.fillText(`${seconds}`, timerX, timerY);
     } else {
       ctx.globalAlpha = 0.4;
-      ctx.fillText("30", timerX, timerY);
+      ctx.fillText(`${timeLimit}`, timerX, timerY);
       ctx.globalAlpha = 1;
     }
 
@@ -1695,6 +1751,254 @@ export class Renderer {
     }
 
     ctx.textAlign = "center";
+  }
+
+  /** トグルスイッチを描画します */
+  drawToggle(cx: number, y: number, label: string, isOn: boolean): void {
+    const ctx = this.ctx;
+    const trackW = 44;
+    const trackH = 24;
+    const knobR = 10;
+
+    // ラベル
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.6;
+    ctx.font = "13px 'Hachi Maru Pop', cursive";
+    ctx.fillText(label, cx - 6, y);
+    ctx.globalAlpha = 1;
+
+    // トラック
+    const trackX = cx + 4;
+    ctx.beginPath();
+    ctx.roundRect(trackX, y - trackH / 2, trackW, trackH, trackH / 2);
+    ctx.fillStyle = isOn ? COLORS.blue : "#CCCCCC";
+    ctx.fill();
+
+    // ノブ
+    const knobX = isOn ? trackX + trackW - knobR - 2 : trackX + knobR + 2;
+    ctx.beginPath();
+    ctx.arc(knobX, y, knobR, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.white;
+    ctx.fill();
+    ctx.strokeStyle = isOn ? COLORS.blueDark : "#AAAAAA";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.textAlign = "left";
+  }
+
+  // ========================================
+  // 積み木モード用描画メソッド
+  // ========================================
+
+  /** 積み木モードの棚パーツを描画します */
+  drawTsumikiShelf(x: number, y: number, length: number, angle: number, isSelected: boolean): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // 棚の本体
+    const h = 10;
+    const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    grad.addColorStop(0, "#8B6914");
+    grad.addColorStop(0.3, "#C4952A");
+    grad.addColorStop(0.7, "#A07820");
+    grad.addColorStop(1, "#6B5010");
+
+    ctx.beginPath();
+    ctx.roundRect(-length / 2, -h / 2, length, h, 3);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 木目模様
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 0.5;
+    for (let i = -length / 2 + 10; i < length / 2; i += 15) {
+      ctx.beginPath();
+      ctx.moveTo(i, -h / 2 + 2);
+      ctx.lineTo(i + 5, h / 2 - 2);
+      ctx.stroke();
+    }
+
+    // 選択時のハイライト
+    if (isSelected) {
+      ctx.strokeStyle = COLORS.blue;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect(-length / 2 - 3, -h / 2 - 3, length + 6, h + 6, 5);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  /** 選択中のパーツの回転ハンドルを描画します */
+  drawRotationHandle(x: number, y: number, angle: number): void {
+    const ctx = this.ctx;
+    const handleDist = 50;
+    const handleX = x + Math.cos(angle) * handleDist;
+    const handleY = y + Math.sin(angle) * handleDist;
+
+    // 接続線
+    ctx.beginPath();
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(x, y);
+    ctx.lineTo(handleX, handleY);
+    ctx.strokeStyle = COLORS.blue;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // ハンドル（丸いつまみ）
+    ctx.beginPath();
+    ctx.arc(handleX, handleY, 12, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.white;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.blue;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 回転アイコン
+    ctx.beginPath();
+    ctx.arc(handleX, handleY, 6, -Math.PI * 0.3, Math.PI * 1.3);
+    ctx.strokeStyle = COLORS.blue;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 矢印
+    const arrowAngle = Math.PI * 1.3;
+    const ax = handleX + Math.cos(arrowAngle) * 6;
+    const ay = handleY + Math.sin(arrowAngle) * 6;
+    ctx.beginPath();
+    ctx.moveTo(ax + 3, ay - 2);
+    ctx.lineTo(ax, ay);
+    ctx.lineTo(ax + 3, ay + 3);
+    ctx.stroke();
+  }
+
+  /** 選択状態のハイライトを描画します（回転対応） */
+  drawTsumikiSelection(x: number, y: number, w: number, h: number, angle = 0): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.roundRect(-w / 2 - 5, -h / 2 - 5, w + 10, h + 10, 6);
+    ctx.strokeStyle = COLORS.blue;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  /** フェーズ切り替え時のフィードバックアニメーションを描画します */
+  drawPhaseTransition(w: number, h: number, age: number): void {
+    const ctx = this.ctx;
+    const alpha = Math.max(0, 1 - age);
+
+    // 画面全体にフラッシュ
+    ctx.fillStyle = `rgba(41, 128, 185, ${alpha * 0.15})`;
+    ctx.fillRect(0, 0, w, h);
+
+    // 「スタート！」テキスト
+    if (age < 0.8) {
+      const scale = 1 + age * 0.3;
+      const textAlpha = age < 0.2 ? age / 0.2 : Math.max(0, 1 - (age - 0.2) / 0.6);
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = textAlpha;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = COLORS.blue;
+      ctx.font = "36px 'Hachi Maru Pop', cursive";
+      ctx.fillText("スタート！", 0, 0);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** 積み木モード用のクリア画面を描画します */
+  drawTsumikiClearScreen(w: number, h: number, goalsScored: number, totalScore: number, unusedBonus: number, timeBonus: number, hasNextLevel: boolean): void {
+    const ctx = this.ctx;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Confetti background
+    for (let i = 0; i < 20; i++) {
+      const confX = (Math.sin(i * 7.3 + this.t * 0.8) * 0.5 + 0.5) * w;
+      const confY = ((i * 41 + this.t * 30) % (h + 40)) - 20;
+      const confSize = 4 + (i % 3) * 2;
+      const confColors = [COLORS.red, COLORS.gold, COLORS.blue, COLORS.green];
+      ctx.fillStyle = confColors[i % confColors.length]!;
+      ctx.globalAlpha = 0.4;
+      ctx.save();
+      ctx.translate(confX, confY);
+      ctx.rotate(this.t * 2 + i);
+      ctx.fillRect(-confSize / 2, -confSize / 2, confSize, confSize * 0.4);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // "Clear" with scale pulse
+    const scale = 1 + Math.sin(this.t * 3) * 0.03;
+    ctx.save();
+    ctx.translate(cx, cy - 120);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = COLORS.blue;
+    ctx.font = "42px 'Hachi Maru Pop', cursive";
+    ctx.fillText("クリア！", 0, 0);
+    ctx.restore();
+
+    // Total score
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = "48px 'Hachi Maru Pop', cursive";
+    ctx.fillText(`${totalScore}`, cx, cy - 50);
+
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.6;
+    ctx.font = "13px 'Hachi Maru Pop', cursive";
+    ctx.fillText("てん", cx, cy - 20);
+    ctx.globalAlpha = 1;
+
+    // スコア内訳
+    const detailY = cy + 10;
+    ctx.font = "12px 'Hachi Maru Pop', cursive";
+    ctx.fillStyle = COLORS.dark;
+    ctx.globalAlpha = 0.7;
+    ctx.fillText(`ゴール: ${goalsScored}`, cx, detailY);
+    ctx.fillText(`のこりパーツ: +${unusedBonus}`, cx, detailY + 20);
+    ctx.fillText(`じかん: +${timeBonus}`, cx, detailY + 40);
+    ctx.globalAlpha = 1;
+
+    // Stars
+    const starY = detailY + 70;
+    const star1 = totalScore >= 2;
+    const star2 = totalScore >= 5;
+    const star3 = totalScore >= 8;
+    this.drawStar(cx - 50, starY, 26, star1);
+    this.drawStar(cx, starY - 10, 30, star2);
+    this.drawStar(cx + 50, starY, 26, star3);
+
+    const btnBaseY = starY + 50;
+    if (hasNextLevel) {
+      this.drawButton(cx, btnBaseY, 200, 54, "つぎへ", COLORS.blue, COLORS.white, "next");
+      this.drawButton(cx, btnBaseY + 65, 200, 48, "もういちど", COLORS.red, COLORS.white, "retry");
+      this.drawButton(cx, btnBaseY + 125, 200, 48, "タイトルへ", COLORS.white, COLORS.dark);
+    } else {
+      this.drawButton(cx, btnBaseY, 200, 54, "もういちど", COLORS.red, COLORS.white, "retry");
+      this.drawButton(cx, btnBaseY + 65, 200, 48, "タイトルへ", COLORS.white, COLORS.dark);
+    }
   }
 }
 
