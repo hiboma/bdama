@@ -25,14 +25,356 @@
       -webkit-user-select: none;
     }
     #game-canvas {
-      display: block;
+      display: none;
       width: 100%;
       height: 100%;
     }
+
+    /* ========================================
+       タイトル画面
+       ======================================== */
+    #title-screen {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* 背景をpseudo要素にしてガタを防止します */
+    #title-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-color: #FFF8E1;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0px, transparent 20px,
+        rgba(231,76,60,0.04) 20px, rgba(231,76,60,0.04) 40px
+      );
+      transition: background-color 0.3s, background-image 0.3s;
+      z-index: 0;
+    }
+    #title-screen.tsumiki::before {
+      background-color: #E8F0FE;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0px, transparent 20px,
+        rgba(243,156,18,0.04) 20px, rgba(243,156,18,0.04) 40px
+      );
+    }
+    #title-screen > * {
+      position: relative;
+      z-index: 1;
+    }
+    /* セクション間のスペーサー */
+    .section-gap-sm { height: 8px; }
+    .section-gap-md { height: 20px; }
+    .section-gap-lg { height: 28px; }
+
+    /* ビー玉 */
+    .title-marble {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #FFE082, #FFC107 40%, #FF8F00 70%, #E65100);
+      box-shadow: 2px 3px 8px rgba(0,0,0,0.15);
+      animation: marble-bounce 2s ease-in-out infinite;
+    }
+    @keyframes marble-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* タイトル文字 */
+    .title-text {
+      color: #E74C3C;
+      font-size: 24px;
+      text-align: center;
+      line-height: 1.35;
+      text-shadow: 2px 2px 0 rgba(74,32,32,0.08);
+    }
+
+    /* モード選択 */
+    .mode-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .mode-btn {
+      padding: 8px 28px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1.5px solid #ccc;
+      background: #fff;
+      color: #4a2020;
+      transition: all 0.15s;
+    }
+    .mode-btn.active {
+      background: #2980B9;
+      color: #fff;
+      border-color: #1F6DA0;
+      box-shadow: 0 2px 0 #1a6a9a;
+    }
+
+    /* 障害物カード 2x2 */
+    .obstacle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: min(280px, 80vw);
+    }
+    .obstacle-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 8px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+      cursor: pointer;
+      border: 2.5px solid transparent;
+      transition: all 0.15s;
+      font-size: 13px;
+      color: #4a2020;
+    }
+    .obstacle-card:active {
+      transform: scale(0.96);
+    }
+    .obstacle-card.selected {
+      border-color: #F39C12;
+      background: #FFFBF0;
+      box-shadow: 0 2px 8px rgba(243,156,18,0.2);
+    }
+    .obstacle-card .icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    /* しかく */
+    .icon-rect {
+      width: 32px;
+      height: 14px;
+      border-radius: 3px;
+      background: linear-gradient(#E74C3C, #C0392B);
+      border-bottom: 2px solid #F39C12;
+    }
+    /* まる */
+    .icon-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #90CAF9, #2196F3 50%, #1565C0);
+    }
+    /* さんかく */
+    .icon-triangle {
+      width: 0;
+      height: 0;
+      border-left: 16px solid transparent;
+      border-right: 16px solid transparent;
+      border-bottom: 28px solid #27AE60;
+    }
+    /* くるくる */
+    .icon-cross {
+      color: #F39C12;
+      font-size: 32px;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    /* あそぶボタン */
+    .play-btn {
+      padding: 14px 64px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+    }
+    .play-btn:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.1);
+    }
+    .play-btn.enabled {
+      background: #E74C3C;
+      color: #fff;
+    }
+    .play-btn.disabled {
+      background: #E0E0E0;
+      color: #aaa;
+      pointer-events: none;
+    }
+
+    /* 設定パネル */
+    .settings-panel {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      width: min(300px, 85vw);
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+    .setting-label {
+      font-size: 11px;
+      color: #4a2020;
+      opacity: 0.5;
+      min-width: 36px;
+      text-align: right;
+    }
+    .step-buttons {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+    .step-btn {
+      flex: 1;
+      padding: 5px 0;
+      border-radius: 8px;
+      font-size: 11px;
+      font-family: inherit;
+      border: 1px solid #ddd;
+      background: #fff;
+      color: #4a2020;
+      cursor: pointer;
+      transition: all 0.1s;
+      text-align: center;
+    }
+    .step-btn:active { transform: scale(0.95); }
+    .step-btn.active {
+      background: #E74C3C;
+      color: #fff;
+      border-color: #C0392B;
+    }
+
+    /* じゆうトグル */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      display: none;
+    }
+    .toggle-row.visible { display: flex; }
+    .toggle-label {
+      font-size: 11px;
+      color: #4a2020;
+      opacity: 0.6;
+    }
+    .toggle-switch {
+      width: 40px;
+      height: 22px;
+      border-radius: 11px;
+      background: #ccc;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-switch.on { background: #2980B9; }
+    .toggle-switch::after {
+      content: '';
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: left 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle-switch.on::after { left: 20px; }
   </style>
 </head>
 <body>
+  <!-- タイトル画面 (HTML) -->
+  <div id="title-screen">
+    <div class="title-marble"></div>
+    <div class="section-gap-sm"></div>
+    <div class="title-text">ビー玉<br>ころころ</div>
+
+    <div class="section-gap-md"></div>
+
+    <div class="mode-buttons">
+      <button class="mode-btn active" data-mode="drawing">おえかき</button>
+      <button class="mode-btn" data-mode="tsumiki">つみき</button>
+    </div>
+
+    <div class="section-gap-md"></div>
+
+    <div class="obstacle-grid">
+      <div class="obstacle-card" data-type="rect">
+        <div class="icon"><div class="icon-rect"></div></div>
+        <span>しかく</span>
+      </div>
+      <div class="obstacle-card" data-type="circle">
+        <div class="icon"><div class="icon-circle"></div></div>
+        <span>まる</span>
+      </div>
+      <div class="obstacle-card" data-type="triangle">
+        <div class="icon"><div class="icon-triangle"></div></div>
+        <span>さんかく</span>
+      </div>
+      <div class="obstacle-card" data-type="cross">
+        <div class="icon"><div class="icon-cross">✕</div></div>
+        <span>くるくる</span>
+      </div>
+    </div>
+
+    <div class="section-gap-md"></div>
+
+    <button class="play-btn disabled" id="play-btn">あそぶ</button>
+
+    <div class="section-gap-lg"></div>
+
+    <div class="settings-panel">
+      <div class="setting-row">
+        <span class="setting-label">はやさ</span>
+        <div class="step-buttons" data-setting="speed">
+          <button class="step-btn" data-step="0">おそい</button>
+          <button class="step-btn" data-step="1">ふつう</button>
+          <button class="step-btn" data-step="2">はやい</button>
+          <button class="step-btn active" data-step="3">もっと</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">はずみ</span>
+        <div class="step-buttons" data-setting="restitution">
+          <button class="step-btn active" data-step="0">ぺたり</button>
+          <button class="step-btn" data-step="1">すこし</button>
+          <button class="step-btn" data-step="2">ふつう</button>
+          <button class="step-btn" data-step="3">すごく</button>
+        </div>
+      </div>
+      <div class="toggle-row" id="free-toggle-row">
+        <span class="toggle-label">じゆう</span>
+        <div class="toggle-switch" id="free-toggle"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ゲーム画面 (Canvas) -->
   <canvas id="game-canvas"></canvas>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
