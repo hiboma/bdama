@@ -7,6 +7,7 @@ import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
+export type GameMode = "drawing" | "tsumiki";
 export type ObstacleType = "rect" | "circle" | "triangle" | "cross";
 
 export interface GoalEffect {
@@ -25,6 +26,7 @@ export interface BreakEffect {
 }
 
 const TIME_LIMIT = 30;
+const TIME_LIMIT_TSUMIKI = 60;
 // 速度ステップ: 0=おそい, 1=ふつう(1x), 2=はやい(2x), 3=もっと(3x)
 const SPEED_STEPS = [0.2, 0.4, 0.8, 1.2];
 // はずみやすさステップ: 0=ぺたり, 1=すこし, 2=ふつう, 3=すごく
@@ -66,6 +68,8 @@ export class Game {
   private input: Input;
   private levelManager: LevelManager;
   private state: GameState = "title";
+  private gameMode: GameMode = "drawing";
+  private tsumikiFreeMode = false;
   private shelves: Shelf[] = [];
   private marbles: Matter.Body[] = [];
   private goalSensor: Matter.Body | null = null;
@@ -117,9 +121,21 @@ export class Game {
   private draggingAnchorIndex = -1;
   private levelStartTime = 0;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 積み木モード用プロパティ
+  private tsumikiShelves: { x: number; y: number; length: number; angle: number; body: Matter.Body | null; moved: boolean }[] = [];
+  private tsumikiSelectedIndex = -1; // 選択中のパーツのインデックス（-1:なし, 0〜:障害物, 1000〜:棚）
+  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "shelf" | null = null;
+  private tsumikiRotating = false;
+  private tsumikiRotateCenter: { x: number; y: number } | null = null;
+  private tsumikiDragging = false;
+  private tsumikiDragOffset: { x: number; y: number } = { x: 0, y: 0 };
+  private tsumikiPhaseTransitionAge = 0; // フェーズ切り替えアニメーション用
+  private tsumikiMovedParts: Set<string> = new Set(); // "type:index" 形式で移動したパーツを記録
   private longPressShelfIndex = -1;
   private longPressProgress = 0;
   private longPressStartTime = 0;
+  private onReturnToTitle: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -150,6 +166,43 @@ export class Game {
 
   start(): void {
     this.state = "title";
+    this.setupInputAndLoop();
+  }
+
+  /** HTML タイトル画面から設定を受け取ってゲームを開始します */
+  startWithConfig(config: {
+    gameMode: GameMode;
+    selectedObstacles: Set<ObstacleType>;
+    speedStep: number;
+    restitutionStep: number;
+    tsumikiFreeMode: boolean;
+    onReturnToTitle: () => void;
+  }): void {
+    this.gameMode = config.gameMode;
+    this.selectedObstacles = config.selectedObstacles;
+    this.speedStep = config.speedStep;
+    this.restitutionStep = config.restitutionStep;
+    this.tsumikiFreeMode = config.tsumikiFreeMode;
+    this.onReturnToTitle = config.onReturnToTitle;
+    this.resize();
+    this.setupInputAndLoop();
+
+    // ゲーム開始
+    this.state = "playing";
+    this.levelManager.loadLevel(1);
+    this.randomizeStartGoalX();
+    this.shelves = [];
+    this.timeRemaining = this.gameMode === "tsumiki" ? TIME_LIMIT_TSUMIKI : TIME_LIMIT;
+    this.timerStarted = false;
+    this.levelStartTime = performance.now();
+    this.generateObstacles();
+    this.setupObstaclesAndWhiteBalls();
+    if (this.gameMode === "tsumiki") {
+      this.generateTsumikiShelves();
+    }
+  }
+
+  private setupInputAndLoop(): void {
     this.input.onTap((x, y, holdDuration) => this.handleTap(x, y, holdDuration));
     this.input.onDrawEnd((points) => this.handleDrawEnd(points));
     this.input.onDragStart((x, y) => this.handleDragStart(x, y));
@@ -301,15 +354,27 @@ export class Game {
   private render(): void {
     this.renderer.pressedPoint = this.input.pointerDown;
     this.ctx.clearRect(0, 0, this.width, this.height);
-    this.renderer.drawBackground(this.width, this.height);
+    this.renderer.drawBackground(this.width, this.height, this.gameMode);
 
     if (this.state === "title") {
-      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles, this.speedStep, this.restitutionStep);
+      // HTML タイトル画面を使用する場合は描画しません
+      if (this.onReturnToTitle) return;
+      this.renderer.drawTitleScreen(this.width, this.height, this.selectedObstacles, this.speedStep, this.restitutionStep, this.gameMode, this.tsumikiFreeMode);
       return;
     }
 
     if (this.state === "clear") {
-      this.renderer.drawClearScreen(this.width, this.height, this.goalsScored, this.levelManager.hasNext());
+      if (this.gameMode === "tsumiki") {
+        const tsumikiScore = this.calculateTsumikiScore();
+        const unusedBonus = Math.max(0,
+          (this.obstacleBodies.length + this.bumperBodies.length +
+          this.triangleBodies.length + this.crossBodies.length + this.tsumikiShelves.length) -
+          this.tsumikiMovedParts.size);
+        const timeBonus = Math.floor(this.timeRemaining / 5);
+        this.renderer.drawTsumikiClearScreen(this.width, this.height, this.goalsScored, tsumikiScore, unusedBonus, timeBonus, this.levelManager.hasNext());
+      } else {
+        this.renderer.drawClearScreen(this.width, this.height, this.goalsScored, this.levelManager.hasNext());
+      }
       return;
     }
 
@@ -401,19 +466,92 @@ export class Game {
       this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
     }
 
-    // 長押しプログレスを更新します
-    if (this.longPressStartTime > 0 && this.longPressTimer) {
-      this.longPressProgress = Math.min(1, (performance.now() - this.longPressStartTime) / 1000);
-    }
+    if (this.gameMode === "tsumiki") {
+      // 積み木モード: 棚パーツを描画します
+      for (let i = 0; i < this.tsumikiShelves.length; i++) {
+        const shelf = this.tsumikiShelves[i]!;
+        if (!shelf.body) continue;
+        const isSelected = this.tsumikiSelectedType === "shelf" && this.tsumikiSelectedIndex === i;
+        this.renderer.drawTsumikiShelf(
+          shelf.body.position.x, shelf.body.position.y,
+          shelf.length, shelf.body.angle, isSelected,
+        );
+      }
 
-    for (let si = 0; si < this.shelves.length; si++) {
-      const shelf = this.shelves[si]!;
-      const deleteProgress = si === this.longPressShelfIndex ? this.longPressProgress : 0;
-      this.renderer.drawShelf(shelf, deleteProgress);
-    }
+      // 選択中のパーツに回転ハンドルを描画します
+      if (this.tsumikiSelectedType && this.tsumikiSelectedIndex >= 0) {
+        const pos = this.tsumikiGetPartPosition(this.tsumikiSelectedType, this.tsumikiSelectedIndex);
+        if (pos) {
+          let angle = 0;
+          if (this.tsumikiSelectedType === "shelf") {
+            angle = this.tsumikiShelves[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "obstacle") {
+            angle = this.obstacleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "triangle") {
+            angle = this.triangleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "cross") {
+            angle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          }
+          this.renderer.drawRotationHandle(pos.x, pos.y, angle);
+        }
+      }
 
-    if ((this.state === "playing" || this.state === "drawing" || this.state === "rolling") && this.input.currentPath.length > 0) {
-      this.renderer.drawCurrentPath(this.input.currentPath);
+      // 障害物の選択状態を描画します
+      for (let i = 0; i < this.obstacleBodies.length; i++) {
+        if (this.tsumikiSelectedType === "obstacle" && this.tsumikiSelectedIndex === i) {
+          const body = this.obstacleBodies[i]!;
+          const obs = this.generatedObstacles[i]!;
+          this.renderer.drawTsumikiSelection(body.position.x, body.position.y, obs.w * this.width, obs.h * this.height, body.angle);
+        }
+      }
+      for (let i = 0; i < this.bumperBodies.length; i++) {
+        if (this.tsumikiSelectedType === "bumper" && this.tsumikiSelectedIndex === i) {
+          const body = this.bumperBodies[i]!;
+          const bp = this.generatedBumpers[i]!;
+          const r = bp.r * this.width;
+          this.renderer.drawTsumikiSelection(body.position.x, body.position.y, r * 2, r * 2);
+        }
+      }
+      for (let i = 0; i < this.triangleBodies.length; i++) {
+        if (this.tsumikiSelectedType === "triangle" && this.tsumikiSelectedIndex === i) {
+          const body = this.triangleBodies[i]!;
+          const tri = this.generatedTriangles[i]!;
+          const size = tri.size * this.width;
+          this.renderer.drawTsumikiSelection(body.position.x, body.position.y, size * 2, size * 2, body.angle);
+        }
+      }
+      for (let i = 0; i < this.crossBodies.length; i++) {
+        if (this.tsumikiSelectedType === "cross" && this.tsumikiSelectedIndex === i) {
+          const cr = this.generatedCrosses[i]!;
+          const armLen = cr.size * this.width * 2;
+          const crossBody = this.crossBodies[i];
+          this.renderer.drawTsumikiSelection(cr.x * this.width, cr.y * this.height, armLen, armLen, crossBody?.angle ?? 0);
+        }
+      }
+
+      // フェーズ切り替えフィードバック
+      if (this.tsumikiPhaseTransitionAge > 0) {
+        const age = (performance.now() - this.tsumikiPhaseTransitionAge) / 1000;
+        if (age < 1.0) {
+          this.renderer.drawPhaseTransition(this.width, this.height, age);
+        }
+      }
+    } else {
+      // おえかきモード: 棚を描画します
+      // 長押しプログレスを更新します
+      if (this.longPressStartTime > 0 && this.longPressTimer) {
+        this.longPressProgress = Math.min(1, (performance.now() - this.longPressStartTime) / 1000);
+      }
+
+      for (let si = 0; si < this.shelves.length; si++) {
+        const shelf = this.shelves[si]!;
+        const deleteProgress = si === this.longPressShelfIndex ? this.longPressProgress : 0;
+        this.renderer.drawShelf(shelf, deleteProgress);
+      }
+
+      if ((this.state === "playing" || this.state === "drawing" || this.state === "rolling") && this.input.currentPath.length > 0) {
+        this.renderer.drawCurrentPath(this.input.currentPath);
+      }
     }
 
     // Draw all marbles
@@ -463,6 +601,7 @@ export class Game {
       this.width,
       this.timeRemaining,
       this.timerStarted,
+      this.gameMode === "tsumiki" ? TIME_LIMIT_TSUMIKI : TIME_LIMIT,
     );
 
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
@@ -508,24 +647,46 @@ export class Game {
 
   private handleTap(x: number, y: number, holdDuration = 0): void {
     if (this.state === "title") {
+      // HTML タイトル画面を使用する場合はスキップします
+      if (this.onReturnToTitle) return;
       const cx = this.width / 2;
       const cy = this.height / 2;
 
-      // 障害物カードのタップ判定
-      const cardW = 80;
-      const cardH = 110;
-      const gap = 8;
-      const cardCount = 4;
-      const totalW = cardW * cardCount + gap * (cardCount - 1);
-      const startCardX = cx - totalW / 2 + cardW / 2;
-      const cardY = cy + 30;
+      // モード選択ボタンのタップ判定
+      const modeY = cy - 100;
+      const modeBtnW = 120;
+      const modeBtnH = 36;
+      const modeGap = 10;
+      const drawingX = cx - modeBtnW / 2 - modeGap / 2;
+      const tsumikiX = cx + modeBtnW / 2 + modeGap / 2;
+
+      if (Math.abs(x - drawingX) < modeBtnW / 2 && Math.abs(y - modeY) < modeBtnH / 2) {
+        this.sound.tap();
+        this.gameMode = "drawing";
+        return;
+      }
+      if (Math.abs(x - tsumikiX) < modeBtnW / 2 && Math.abs(y - modeY) < modeBtnH / 2) {
+        this.sound.tap();
+        this.gameMode = "tsumiki";
+        return;
+      }
+
+      // 障害物カードのタップ判定（2x2グリッド）
+      const cardW = 100;
+      const cardH = 72;
+      const gapX = 12;
+      const gapY = 10;
+      const gridTop = modeY + 32;
       const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
 
-      for (let i = 0; i < cardCount; i++) {
-        const cardX = startCardX + i * (cardW + gap);
+      for (let i = 0; i < 4; i++) {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const cardX = cx + (col === 0 ? -(cardW / 2 + gapX / 2) : (cardW / 2 + gapX / 2));
+        const cardCY = gridTop + row * (cardH + gapY) + cardH / 2;
         if (
           Math.abs(x - cardX) < cardW / 2 &&
-          Math.abs(y - cardY) < cardH / 2
+          Math.abs(y - cardCY) < cardH / 2
         ) {
           this.sound.tap();
           const type = types[i]!;
@@ -538,8 +699,10 @@ export class Game {
         }
       }
 
+      const gridBottom = gridTop + 2 * (cardH + gapY);
+
       // あそぶボタン
-      const btnY = cardY + cardH / 2 + 60;
+      const btnY = gridBottom + 20;
       if (
         this.selectedObstacles.size > 0 &&
         Math.abs(x - cx) < 100 &&
@@ -550,11 +713,14 @@ export class Game {
         this.levelManager.loadLevel(1);
         this.randomizeStartGoalX();
         this.shelves = [];
-        this.timeRemaining = TIME_LIMIT;
+        this.timeRemaining = this.gameMode === "tsumiki" ? TIME_LIMIT_TSUMIKI : TIME_LIMIT;
         this.timerStarted = false;
         this.levelStartTime = performance.now();
         this.generateObstacles();
         this.setupObstaclesAndWhiteBalls();
+        if (this.gameMode === "tsumiki") {
+          this.generateTsumikiShelves();
+        }
         return;
       }
 
@@ -573,6 +739,17 @@ export class Game {
         this.restitutionStep = bounceHit;
         this.saveSettings();
         return;
+      }
+
+      // 積み木モード: じゆうトグルのタップ判定
+      if (this.gameMode === "tsumiki") {
+        const freeY = layout.restitutionY + 32;
+        const toggleTrackX = layout.cx + 4;
+        if (x >= toggleTrackX && x <= toggleTrackX + 44 && Math.abs(y - freeY) < 14) {
+          this.sound.tap();
+          this.tsumikiFreeMode = !this.tsumikiFreeMode;
+          return;
+        }
       }
       return;
     }
@@ -644,8 +821,32 @@ export class Game {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 40) {
           this.sound.roll();
+          if (this.gameMode === "tsumiki") {
+            this.tsumikiPhaseTransitionAge = performance.now();
+          }
           this.addMarble();
           return;
+        }
+      }
+
+      // 積み木モード: パーツタップで選択/解除
+      if (this.gameMode === "tsumiki") {
+        const hit = this.tsumikiHitTest(x, y);
+        if (hit) {
+          this.sound.tap();
+          if (this.tsumikiSelectedType === hit.type && this.tsumikiSelectedIndex === hit.index) {
+            // 同じパーツを再タップで選択解除
+            this.tsumikiSelectedIndex = -1;
+            this.tsumikiSelectedType = null;
+          } else {
+            this.tsumikiSelectedType = hit.type;
+            this.tsumikiSelectedIndex = hit.index;
+          }
+          return;
+        } else {
+          // 空白タップで選択解除
+          this.tsumikiSelectedIndex = -1;
+          this.tsumikiSelectedType = null;
         }
       }
 
@@ -749,6 +950,8 @@ export class Game {
 
   private handleDrawEnd(points: { x: number; y: number }[]): void {
     if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return;
+    // 積み木モードでは線を描画しません
+    if (this.gameMode === "tsumiki") return;
 
     const level = this.levelManager.current();
     if (!level) return;
@@ -919,15 +1122,20 @@ export class Game {
     return result;
   }
 
+  /** タイトル画面のカードY座標を計算します */
   /** ステップセレクターのレイアウト情報を返します */
   private getStepSelectorLayout(): { cx: number; speedY: number; restitutionY: number } {
     const cx = this.width / 2;
     const cy = this.height / 2;
-    const cardH = 110;
-    const cardY = cy + 30;
-    const btnY = cardY + cardH / 2 + 60;
-    const speedY = btnY + 100;
-    const restitutionY = speedY + 60;
+    const modeY = cy - 100;
+    const gridTop = modeY + 32;
+    const cardH = 72;
+    const gapY = 10;
+    const gridBottom = gridTop + 2 * (cardH + gapY);
+    const btnY = gridBottom + 20;
+    const panelTop = btnY + 34;
+    const speedY = panelTop + 12;
+    const restitutionY = speedY + 34;
     return { cx, speedY, restitutionY };
   }
 
@@ -948,6 +1156,49 @@ export class Game {
   private handleDragStart(x: number, y: number): boolean {
 
     if (this.state !== "playing" && this.state !== "drawing" && this.state !== "rolling") return false;
+
+    // 積み木モードのD&D処理
+    if (this.gameMode === "tsumiki") {
+      // 回転ハンドルのドラッグ判定
+      if (this.tsumikiSelectedType && this.tsumikiSelectedIndex >= 0) {
+        const pos = this.tsumikiGetPartPosition(this.tsumikiSelectedType, this.tsumikiSelectedIndex);
+        if (pos) {
+          const handleDist = 50;
+          let currentAngle = 0;
+          if (this.tsumikiSelectedType === "shelf") {
+            currentAngle = this.tsumikiShelves[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "obstacle") {
+            currentAngle = this.obstacleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "triangle") {
+            currentAngle = this.triangleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "cross") {
+            currentAngle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          }
+          const handleX = pos.x + Math.cos(currentAngle) * handleDist;
+          const handleY = pos.y + Math.sin(currentAngle) * handleDist;
+          const dHandle = Math.sqrt((x - handleX) ** 2 + (y - handleY) ** 2);
+          if (dHandle < 20) {
+            this.tsumikiRotating = true;
+            this.tsumikiRotateCenter = pos;
+            return true;
+          }
+        }
+      }
+
+      // パーツ本体のドラッグ判定
+      const hit = this.tsumikiHitTest(x, y);
+      if (hit) {
+        this.tsumikiSelectedType = hit.type;
+        this.tsumikiSelectedIndex = hit.index;
+        this.tsumikiDragging = true;
+        const pos = this.tsumikiGetPartPosition(hit.type, hit.index);
+        if (pos) {
+          this.tsumikiDragOffset = { x: x - pos.x, y: y - pos.y };
+        }
+        return true;
+      }
+      return false;
+    }
 
     for (let i = 0; i < this.shelves.length; i++) {
       const shelf = this.shelves[i]!;
@@ -976,6 +1227,23 @@ export class Game {
   }
 
   private handleDragMove(x: number, y: number): void {
+    // 積み木モードのドラッグ移動
+    if (this.gameMode === "tsumiki" && this.tsumikiSelectedType && this.tsumikiSelectedIndex >= 0) {
+      if (this.tsumikiRotating && this.tsumikiRotateCenter) {
+        // 回転操作
+        const angle = Math.atan2(y - this.tsumikiRotateCenter.y, x - this.tsumikiRotateCenter.x);
+        this.tsumikiRotatePart(this.tsumikiSelectedType, this.tsumikiSelectedIndex, angle);
+        return;
+      }
+      if (this.tsumikiDragging) {
+        // 移動操作
+        const newX = x - this.tsumikiDragOffset.x;
+        const newY = y - this.tsumikiDragOffset.y;
+        this.tsumikiMovePart(this.tsumikiSelectedType, this.tsumikiSelectedIndex, newX, newY);
+        return;
+      }
+    }
+
     if (this.draggingShelfIndex < 0 || this.draggingAnchorIndex < 0) return;
     const shelf = this.shelves[this.draggingShelfIndex];
     if (!shelf) return;
@@ -989,6 +1257,12 @@ export class Game {
 
   /** ドラッグ終了時の処理です */
   private handleDragEnd(): void {
+    if (this.gameMode === "tsumiki") {
+      this.tsumikiDragging = false;
+      this.tsumikiRotating = false;
+      this.tsumikiRotateCenter = null;
+      return;
+    }
     this.cancelLongPress();
     this.draggingShelfIndex = -1;
     this.draggingAnchorIndex = -1;
@@ -1380,6 +1654,10 @@ export class Game {
 
   private goToTitle(): void {
     this.cleanupPhysics();
+    if (this.onReturnToTitle) {
+      this.onReturnToTitle();
+      return;
+    }
     this.state = "title";
     this.selectedObstacles.clear();
   }
@@ -1396,7 +1674,7 @@ export class Game {
     this.goalSensor = null;
     this.staticBodies = [];
     this.state = "playing";
-    this.timeRemaining = TIME_LIMIT;
+    this.timeRemaining = this.gameMode === "tsumiki" ? TIME_LIMIT_TSUMIKI : TIME_LIMIT;
     this.timerStarted = false;
     this.loadSettings();
     this.levelStartTime = performance.now();
@@ -1428,8 +1706,18 @@ export class Game {
     this.crossBodies = [];
     this.crossHitTimes.clear();
     this.crossDirections = [];
+    this.tsumikiShelves = [];
+    this.tsumikiSelectedIndex = -1;
+    this.tsumikiSelectedType = null;
+    this.tsumikiRotating = false;
+    this.tsumikiDragging = false;
+    this.tsumikiMovedParts.clear();
+    this.tsumikiPhaseTransitionAge = 0;
     this.generateObstacles();
     this.setupObstaclesAndWhiteBalls();
+    if (this.gameMode === "tsumiki") {
+      this.generateTsumikiShelves();
+    }
   }
 
   private spawnBreakEffect(x: number, y: number, colorIndex: number): void {
@@ -1773,5 +2061,284 @@ export class Game {
     this.triangleHitTimes.clear();
     this.crossBodies = [];
     this.crossHitTimes.clear();
+    this.tsumikiShelves = [];
+    this.tsumikiSelectedIndex = -1;
+    this.tsumikiSelectedType = null;
+    this.tsumikiMovedParts.clear();
+  }
+
+  // ========================================
+  // 積み木モード
+  // ========================================
+
+  /** 積み木モード用の棚パーツをランダム生成します */
+  private generateTsumikiShelves(): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    this.tsumikiShelves = [];
+    const shelfCount = 3 + Math.floor(this.getRandom() * 2); // 3-4本
+
+    const startX = level.start.x;
+    const startY = level.start.y;
+    const goalX = level.goal.x;
+    const goalY = level.goal.y;
+
+    for (let i = 0; i < shelfCount; i++) {
+      const minY = Math.min(startY, goalY) + 0.1;
+      const maxY = Math.max(startY, goalY) - 0.1;
+      let ox = 0.15 + this.getRandom() * 0.7;
+      let oy = minY + this.getRandom() * (maxY - minY);
+
+      // スタート・ゴール付近を避けます
+      const dStart = Math.sqrt((ox - startX) ** 2 + (oy - startY) ** 2);
+      const dGoal = Math.sqrt((ox - goalX) ** 2 + (oy - goalY) ** 2);
+      if (dStart < 0.15 || dGoal < 0.15) {
+        ox = 0.3 + this.getRandom() * 0.4;
+        oy = 0.3 + this.getRandom() * 0.4;
+      }
+
+      const lengths = [104, 156, 208]; // 短・中・長（1.3倍）
+      const length = lengths[Math.floor(this.getRandom() * lengths.length)]!;
+      const angle = (this.getRandom() - 0.5) * Math.PI * 0.6; // -54° 〜 +54°
+
+      const px = ox * this.width;
+      const py = oy * this.height;
+
+      const body = Matter.Bodies.rectangle(px, py, length, 10, {
+        isStatic: true,
+        angle,
+        friction: 0.001,
+        restitution: 0.2,
+        label: "tsumiki-shelf",
+        render: { visible: false },
+        chamfer: { radius: 3 },
+      });
+      Matter.Composite.add(this.engine.world, body);
+
+      this.tsumikiShelves.push({ x: px, y: py, length, angle, body, moved: false });
+    }
+  }
+
+  /** 積み木モードのパーツヒットテストを行います */
+  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "shelf"; index: number } | null {
+    // 棚のヒットテスト
+    for (let i = 0; i < this.tsumikiShelves.length; i++) {
+      const shelf = this.tsumikiShelves[i]!;
+      const body = shelf.body;
+      if (!body) continue;
+      // 回転を考慮した矩形ヒットテスト
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const cos = Math.cos(-body.angle);
+      const sin = Math.sin(-body.angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      if (Math.abs(localX) < shelf.length / 2 + 10 && Math.abs(localY) < 20) {
+        return { type: "shelf", index: i };
+      }
+    }
+
+    // じゆうモードがオフの場合は障害物を操作できません
+    if (!this.tsumikiFreeMode) return null;
+
+    // 障害物のヒットテスト（回転考慮）
+    for (let i = 0; i < this.obstacleBodies.length; i++) {
+      const body = this.obstacleBodies[i]!;
+      const obs = this.generatedObstacles[i]!;
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const cos = Math.cos(-body.angle);
+      const sin = Math.sin(-body.angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      const hw = (obs.w * this.width) / 2 + 8;
+      const hh = (obs.h * this.height) / 2 + 8;
+      if (Math.abs(localX) < hw && Math.abs(localY) < hh) {
+        return { type: "obstacle", index: i };
+      }
+    }
+
+    // バンパーのヒットテスト
+    for (let i = 0; i < this.bumperBodies.length; i++) {
+      const body = this.bumperBodies[i]!;
+      const bp = this.generatedBumpers[i]!;
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const r = bp.r * this.width + 6;
+      if (dx * dx + dy * dy < r * r) {
+        return { type: "bumper", index: i };
+      }
+    }
+
+    // トライアングルのヒットテスト（外接円 + マージン）
+    for (let i = 0; i < this.triangleBodies.length; i++) {
+      const body = this.triangleBodies[i]!;
+      const tri = this.generatedTriangles[i]!;
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const r = tri.size * this.width + 6;
+      if (dx * dx + dy * dy < r * r) {
+        return { type: "triangle", index: i };
+      }
+    }
+
+    // クロスのヒットテスト（回転を考慮した十字形）
+    for (let i = 0; i < this.crossBodies.length; i++) {
+      const cr = this.generatedCrosses[i]!;
+      const body = this.crossBodies[i];
+      const cx = cr.x * this.width;
+      const cy = cr.y * this.height;
+      const dx = px - cx;
+      const dy = py - cy;
+      const angle = body ? body.angle : 0;
+      const cos = Math.cos(-angle);
+      const sin = Math.sin(-angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      const armLen = cr.size * this.width;
+      const armW = cr.size * this.width * 0.4;
+      const margin = 8;
+      // 水平アームまたは垂直アームの内側にあるか判定します
+      const inHorizontal = Math.abs(localX) < armLen + margin && Math.abs(localY) < armW / 2 + margin;
+      const inVertical = Math.abs(localX) < armW / 2 + margin && Math.abs(localY) < armLen + margin;
+      if (inHorizontal || inVertical) {
+        return { type: "cross", index: i };
+      }
+    }
+
+    return null;
+  }
+
+  /** 積み木モードのパーツの位置を取得します */
+  private tsumikiGetPartPosition(type: string, index: number): { x: number; y: number } | null {
+    if (type === "shelf") {
+      const shelf = this.tsumikiShelves[index];
+      return shelf?.body ? { x: shelf.body.position.x, y: shelf.body.position.y } : null;
+    }
+    if (type === "obstacle") {
+      const body = this.obstacleBodies[index];
+      return body ? { x: body.position.x, y: body.position.y } : null;
+    }
+    if (type === "bumper") {
+      const body = this.bumperBodies[index];
+      return body ? { x: body.position.x, y: body.position.y } : null;
+    }
+    if (type === "triangle") {
+      const body = this.triangleBodies[index];
+      return body ? { x: body.position.x, y: body.position.y } : null;
+    }
+    if (type === "cross") {
+      const cr = this.generatedCrosses[index];
+      return cr ? { x: cr.x * this.width, y: cr.y * this.height } : null;
+    }
+    return null;
+  }
+
+  /** 積み木モードのパーツを移動します */
+  private tsumikiMovePart(type: string, index: number, x: number, y: number): void {
+    const level = this.levelManager.current();
+    if (!level) return;
+
+    // 画面外への移動を防止します
+    const margin = 20;
+    const clampedX = Math.max(margin, Math.min(this.width - margin, x));
+    const clampedY = Math.max(margin, Math.min(this.height - margin, y));
+
+    // スタート・ゴール位置の保護
+    const startX = level.start.x * this.width;
+    const startY = level.start.y * this.height;
+    const goalX = level.goal.x * this.width;
+    const goalY = level.goal.y * this.height;
+    const protectR = 45;
+
+    const dStart = Math.sqrt((clampedX - startX) ** 2 + (clampedY - startY) ** 2);
+    const dGoal = Math.sqrt((clampedX - goalX) ** 2 + (clampedY - goalY) ** 2);
+    if (dStart < protectR || dGoal < protectR) return;
+
+    this.tsumikiMovedParts.add(`${type}:${index}`);
+
+    if (type === "shelf") {
+      const shelf = this.tsumikiShelves[index];
+      if (shelf?.body) {
+        Matter.Body.setPosition(shelf.body, { x: clampedX, y: clampedY });
+        shelf.x = clampedX;
+        shelf.y = clampedY;
+        shelf.moved = true;
+      }
+    } else if (type === "obstacle") {
+      const body = this.obstacleBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        this.obstacleBasePositions[index] = { x: clampedX, y: clampedY };
+      }
+    } else if (type === "bumper") {
+      const body = this.bumperBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+      }
+    } else if (type === "triangle") {
+      const body = this.triangleBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        this.triangleBasePositions[index] = { x: clampedX, y: clampedY };
+      }
+    } else if (type === "cross") {
+      const body = this.crossBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        const cr = this.generatedCrosses[index];
+        if (cr) {
+          cr.x = clampedX / this.width;
+          cr.y = clampedY / this.height;
+        }
+      }
+    }
+  }
+
+  /** 積み木モードのパーツを回転します */
+  private tsumikiRotatePart(type: string, index: number, angle: number): void {
+    if (type === "shelf") {
+      const shelf = this.tsumikiShelves[index];
+      if (shelf?.body) {
+        Matter.Body.setAngle(shelf.body, angle);
+        shelf.angle = angle;
+        shelf.moved = true;
+      }
+    } else if (type === "obstacle") {
+      const body = this.obstacleBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
+    } else if (type === "triangle") {
+      const body = this.triangleBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
+    } else if (type === "cross") {
+      const body = this.crossBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
+    }
+    this.tsumikiMovedParts.add(`${type}:${index}`);
+  }
+
+  /** 積み木モードのスコア計算 */
+  private calculateTsumikiScore(): number {
+    let score = this.goalsScored;
+
+    // 未移動パーツボーナス
+    const totalParts = this.obstacleBodies.length + this.bumperBodies.length +
+      this.triangleBodies.length + this.crossBodies.length + this.tsumikiShelves.length;
+    const movedCount = this.tsumikiMovedParts.size;
+    const unusedBonus = Math.max(0, totalParts - movedCount);
+    score += unusedBonus;
+
+    // 時間ボーナス（残り時間に応じて）
+    const timeBonus = Math.floor(this.timeRemaining / 5);
+    score += timeBonus;
+
+    return score;
   }
 }
