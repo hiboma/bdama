@@ -2,13 +2,13 @@ import Matter from "matter-js";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { LevelManager } from "./LevelManager";
-import type { ObstacleData, BumperData, TriangleData, CrossData } from "./LevelManager";
+import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
 export type GameMode = "drawing" | "tsumiki";
-export type ObstacleType = "rect" | "circle" | "triangle" | "cross";
+export type ObstacleType = "rect" | "circle" | "triangle" | "cross" | "seesaw";
 
 export interface GoalEffect {
   x: number;
@@ -102,6 +102,11 @@ export class Game {
   private crossBodies: Matter.Body[] = [];
   private crossHitTimes: Map<number, number> = new Map();
   private crossDirections: number[] = [];
+  private generatedSeesaws: SeesawData[] = [];
+  private seesawBodies: Matter.Body[] = [];
+  private seesawHitTimes: Map<number, number> = new Map();
+  private seesawPhases: number[] = [];
+  private seesawSpeeds: number[] = [];
   private obstaclePivots: ("center" | "left" | "right")[] = [];
   private obstacleBasePositions: { x: number; y: number }[] = [];
   private obstaclePhases: number[] = [];
@@ -125,7 +130,7 @@ export class Game {
   // 積み木モード用プロパティ
   private tsumikiShelves: { x: number; y: number; length: number; angle: number; body: Matter.Body | null; moved: boolean }[] = [];
   private tsumikiSelectedIndex = -1; // 選択中のパーツのインデックス（-1:なし, 0〜:障害物, 1000〜:棚）
-  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "shelf" | null = null;
+  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "shelf" | null = null;
   private tsumikiRotating = false;
   private tsumikiRotateCenter: { x: number; y: number } | null = null;
   private tsumikiDragging = false;
@@ -329,6 +334,16 @@ export class Game {
       }
     }
 
+    // シーソーをゆらゆら揺らします
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.seesawBodies.length; i++) {
+        const phase = this.seesawPhases[i] ?? 0;
+        const speed = this.seesawSpeeds[i] ?? 0.8;
+        const angle = Math.sin(this.elapsed * speed + phase) * 0.3;
+        Matter.Body.setAngle(this.seesawBodies[i]!, angle);
+      }
+    }
+
     // Update goal effects
     for (const effect of this.goalEffects) {
       effect.age += dt;
@@ -462,6 +477,24 @@ export class Game {
       );
     }
 
+    for (let i = 0; i < this.generatedSeesaws.length; i++) {
+      const sw = this.generatedSeesaws[i]!;
+      const body = this.seesawBodies[i];
+      const hitTime = body ? this.seesawHitTimes.get(body.id) : undefined;
+      const hitAge4 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const bx = body ? body.position.x : sw.x * this.width;
+      const by = body ? body.position.y : sw.y * this.height;
+      const angle = body ? body.angle : 0;
+      this.renderer.drawSeesaw(
+        bx,
+        by,
+        sw.w * this.width,
+        sw.h * this.height,
+        angle,
+        hitAge4,
+      );
+    }
+
     for (const t of level.trampolines) {
       this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
     }
@@ -491,6 +524,8 @@ export class Game {
             angle = this.triangleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "cross") {
             angle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "seesaw") {
+            angle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           this.renderer.drawRotationHandle(pos.x, pos.y, angle);
         }
@@ -526,6 +561,19 @@ export class Game {
           const armLen = cr.size * this.width * 2;
           const crossBody = this.crossBodies[i];
           this.renderer.drawTsumikiSelection(cr.x * this.width, cr.y * this.height, armLen, armLen, crossBody?.angle ?? 0);
+        }
+      }
+      for (let i = 0; i < this.seesawBodies.length; i++) {
+        if (this.tsumikiSelectedType === "seesaw" && this.tsumikiSelectedIndex === i) {
+          const sw = this.generatedSeesaws[i]!;
+          const body = this.seesawBodies[i];
+          this.renderer.drawTsumikiSelection(
+            body ? body.position.x : sw.x * this.width,
+            body ? body.position.y : sw.y * this.height,
+            sw.w * this.width,
+            sw.h * this.height,
+            body?.angle ?? 0,
+          );
         }
       }
 
@@ -653,7 +701,7 @@ export class Game {
       const cy = this.height / 2;
 
       // モード選択ボタンのタップ判定
-      const modeY = cy - 100;
+      const modeY = cy - 130;
       const modeBtnW = 120;
       const modeBtnH = 36;
       const modeGap = 10;
@@ -671,15 +719,15 @@ export class Game {
         return;
       }
 
-      // 障害物カードのタップ判定（2x2グリッド）
+      // 障害物カードのタップ判定（2列グリッド）
       const cardW = 100;
-      const cardH = 72;
+      const cardH = 64;
       const gapX = 12;
-      const gapY = 10;
+      const gapY = 8;
       const gridTop = modeY + 32;
-      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
+      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw"];
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < types.length; i++) {
         const col = i % 2;
         const row = Math.floor(i / 2);
         const cardX = cx + (col === 0 ? -(cardW / 2 + gapX / 2) : (cardW / 2 + gapX / 2));
@@ -699,7 +747,8 @@ export class Game {
         }
       }
 
-      const gridBottom = gridTop + 2 * (cardH + gapY);
+      const gridRows = Math.ceil(types.length / 2);
+      const gridBottom = gridTop + gridRows * (cardH + gapY);
 
       // あそぶボタン
       const btnY = gridBottom + 20;
@@ -1127,11 +1176,12 @@ export class Game {
   private getStepSelectorLayout(): { cx: number; speedY: number; restitutionY: number } {
     const cx = this.width / 2;
     const cy = this.height / 2;
-    const modeY = cy - 100;
+    const modeY = cy - 130;
     const gridTop = modeY + 32;
-    const cardH = 72;
-    const gapY = 10;
-    const gridBottom = gridTop + 2 * (cardH + gapY);
+    const cardH = 64;
+    const gapY = 8;
+    const gridRows = Math.ceil(5 / 2); // 5 obstacle types
+    const gridBottom = gridTop + gridRows * (cardH + gapY);
     const btnY = gridBottom + 20;
     const panelTop = btnY + 34;
     const speedY = panelTop + 12;
@@ -1173,6 +1223,8 @@ export class Game {
             currentAngle = this.triangleBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "cross") {
             currentAngle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "seesaw") {
+            currentAngle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           const handleX = pos.x + Math.cos(currentAngle) * handleDist;
           const handleY = pos.y + Math.sin(currentAngle) * handleDist;
@@ -1467,6 +1519,33 @@ export class Game {
       });
       Matter.Composite.add(this.engine.world, crossBody);
       this.crossBodies.push(crossBody);
+    }
+
+    // Seesaws (static board that sways periodically)
+    this.seesawBodies = [];
+    this.seesawPhases = [];
+    this.seesawSpeeds = [];
+    for (const sw of this.generatedSeesaws) {
+      const cx = sw.x * this.width;
+      const cy = sw.y * this.height;
+      const swBody = Matter.Bodies.rectangle(
+        cx,
+        cy,
+        sw.w * this.width,
+        sw.h * this.height,
+        {
+          isStatic: true,
+          restitution: 0.4,
+          friction: 0.5,
+          label: "seesaw",
+          render: { visible: false },
+          chamfer: { radius: 2 },
+        },
+      );
+      Matter.Composite.add(this.engine.world, swBody);
+      this.seesawBodies.push(swBody);
+      this.seesawPhases.push(this.getRandom() * Math.PI * 2);
+      this.seesawSpeeds.push(0.6 + this.getRandom() * 0.6);
     }
 
     // White balls (adjacent to obstacles)
@@ -1778,6 +1857,7 @@ export class Game {
     this.generatedObstacles = [];
     this.generatedBumpers = [];
     this.generatedTriangles = [];
+    this.generatedSeesaws = [];
 
     const startX = level.start.x;
     const startY = level.start.y;
@@ -1819,6 +1899,10 @@ export class Game {
           const size = 0.0675 + this.getRandom() * 0.045;
           this.generatedCrosses.push({ x: ox, y: oy, size });
           this.crossDirections.push(this.getRandom() < 0.5 ? 1 : -1);
+        } else if (type === "seesaw") {
+          const w = 0.15 + this.getRandom() * 0.1;
+          const h = 0.025 + this.getRandom() * 0.015;
+          this.generatedSeesaws.push({ x: ox, y: oy, w, h });
         }
       }
     }
@@ -1891,6 +1975,18 @@ export class Game {
           this.crossHitTimes.set(hitCross.id, performance.now());
           this.sound.bounce();
         }
+
+        // シーソーの衝突フィードバック
+        let hitSeesaw: Matter.Body | null = null;
+        if (bodyA.label === "seesaw" && bodyB.label === "marble") {
+          hitSeesaw = bodyA;
+        } else if (bodyB.label === "seesaw" && bodyA.label === "marble") {
+          hitSeesaw = bodyB;
+        }
+        if (hitSeesaw) {
+          this.seesawHitTimes.set(hitSeesaw.id, performance.now());
+          this.sound.bounce();
+        }
       }
     });
   }
@@ -1930,6 +2026,12 @@ export class Game {
       const armLen = cr.size * this.width;
       whiteX = cr.x * this.width;
       whiteY = (cr.y * this.height) - armLen - MARBLE_RADIUS - 1;
+      placed = true;
+    } else if (type === "seesaw" && this.generatedSeesaws.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedSeesaws.length);
+      const sw = this.generatedSeesaws[idx]!;
+      whiteX = sw.x * this.width;
+      whiteY = (sw.y - sw.h / 2) * this.height - MARBLE_RADIUS - 1;
       placed = true;
     }
 
@@ -2061,6 +2163,10 @@ export class Game {
     this.triangleHitTimes.clear();
     this.crossBodies = [];
     this.crossHitTimes.clear();
+    this.seesawBodies = [];
+    this.seesawHitTimes.clear();
+    this.seesawPhases = [];
+    this.seesawSpeeds = [];
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -2121,7 +2227,7 @@ export class Game {
   }
 
   /** 積み木モードのパーツヒットテストを行います */
-  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "shelf"; index: number } | null {
+  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "shelf"; index: number } | null {
     // 棚のヒットテスト
     for (let i = 0; i < this.tsumikiShelves.length; i++) {
       const shelf = this.tsumikiShelves[i]!;
@@ -2207,6 +2313,23 @@ export class Game {
       }
     }
 
+    // シーソーのヒットテスト（回転考慮）
+    for (let i = 0; i < this.seesawBodies.length; i++) {
+      const body = this.seesawBodies[i]!;
+      const sw = this.generatedSeesaws[i]!;
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const cos = Math.cos(-body.angle);
+      const sin = Math.sin(-body.angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      const hw = (sw.w * this.width) / 2 + 8;
+      const hh = (sw.h * this.height) / 2 + 8;
+      if (Math.abs(localX) < hw && Math.abs(localY) < hh) {
+        return { type: "seesaw", index: i };
+      }
+    }
+
     return null;
   }
 
@@ -2231,6 +2354,10 @@ export class Game {
     if (type === "cross") {
       const cr = this.generatedCrosses[index];
       return cr ? { x: cr.x * this.width, y: cr.y * this.height } : null;
+    }
+    if (type === "seesaw") {
+      const body = this.seesawBodies[index];
+      return body ? { x: body.position.x, y: body.position.y } : null;
     }
     return null;
   }
@@ -2293,6 +2420,11 @@ export class Game {
           cr.y = clampedY / this.height;
         }
       }
+    } else if (type === "seesaw") {
+      const body = this.seesawBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+      }
     }
   }
 
@@ -2320,6 +2452,11 @@ export class Game {
       if (body) {
         Matter.Body.setAngle(body, angle);
       }
+    } else if (type === "seesaw") {
+      const body = this.seesawBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
     }
     this.tsumikiMovedParts.add(`${type}:${index}`);
   }
@@ -2330,7 +2467,7 @@ export class Game {
 
     // 未移動パーツボーナス
     const totalParts = this.obstacleBodies.length + this.bumperBodies.length +
-      this.triangleBodies.length + this.crossBodies.length + this.tsumikiShelves.length;
+      this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.tsumikiShelves.length;
     const movedCount = this.tsumikiMovedParts.size;
     const unusedBonus = Math.max(0, totalParts - movedCount);
     score += unusedBonus;
