@@ -74,22 +74,22 @@ export class Renderer {
 
     // Floating marble
     const bounce = Math.sin(this.t * 2) * 8;
-    this.drawMarble(cx, cy - 200 + bounce, 35);
+    this.drawMarble(cx, cy - 230 + bounce, 35);
 
     // Title
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "rgba(74,32,32,0.1)";
     ctx.font = "24px 'Hachi Maru Pop', cursive";
-    ctx.fillText("ビー玉", cx + 2, cy - 155);
-    ctx.fillText("ころころ", cx + 2, cy - 128);
+    ctx.fillText("ビー玉", cx + 2, cy - 185);
+    ctx.fillText("ころころ", cx + 2, cy - 158);
     ctx.fillStyle = COLORS.red;
     ctx.font = "24px 'Hachi Maru Pop', cursive";
-    ctx.fillText("ビー玉", cx, cy - 157);
-    ctx.fillText("ころころ", cx, cy - 130);
+    ctx.fillText("ビー玉", cx, cy - 187);
+    ctx.fillText("ころころ", cx, cy - 160);
 
     // モード選択ボタン
-    const modeY = cy - 100;
+    const modeY = cy - 130;
     const modeBtnW = 120;
     const modeBtnH = 36;
     const modeGap = 10;
@@ -99,16 +99,16 @@ export class Renderer {
     this.drawModeButton(drawingX, modeY, modeBtnW, modeBtnH, "おえかき", gameMode === "drawing");
     this.drawModeButton(tsumikiX, modeY, modeBtnW, modeBtnH, "つみき", gameMode === "tsumiki");
 
-    // Obstacle cards - 2x2 グリッド
+    // Obstacle cards - 2x3 グリッド
     const cardW = 100;
-    const cardH = 72;
+    const cardH = 64;
     const gapX = 12;
-    const gapY = 10;
+    const gapY = 8;
     const gridTop = modeY + 32;
-    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross"];
-    const labels = ["しかく", "まる", "さんかく", "くるくる"];
+    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw"];
+    const labels = ["しかく", "まる", "さんかく", "くるくる", "シーソー"];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < types.length; i++) {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const cardX = cx + (col === 0 ? -(cardW / 2 + gapX / 2) : (cardW / 2 + gapX / 2));
@@ -117,7 +117,8 @@ export class Renderer {
       this.drawObstacleCard(cardX, cardY, cardW, cardH, types[i]!, labels[i]!, isSelected);
     }
 
-    const gridBottom = gridTop + 2 * (cardH + gapY);
+    const gridRows = Math.ceil(types.length / 2);
+    const gridBottom = gridTop + gridRows * (cardH + gapY);
 
     // Play button
     const btnY = gridBottom + 20;
@@ -898,6 +899,68 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawSeesaw(x: number, y: number, w: number, h: number, angle: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Shadow
+    ctx.beginPath();
+    ctx.roundRect(-w / 2 + 2, -h / 2 + 2, w, h, 4);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+
+    // Board body
+    const topColor = isHit ? COLORS.goldLight : "#8E6BBE";
+    const bottomColor = isHit ? COLORS.gold : "#5B3A8C";
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 4);
+    const grad = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+    grad.addColorStop(0, bottomColor);
+    grad.addColorStop(0.5, topColor);
+    grad.addColorStop(1, bottomColor);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#4A2870";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Highlight stripe on top
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, Math.max(3, h * 0.3), [4, 4, 0, 0]);
+    ctx.fillStyle = isHit ? COLORS.white : "rgba(255,255,255,0.2)";
+    ctx.fill();
+
+    ctx.restore();
+
+    // Pivot triangle (support underneath, drawn in world space)
+    ctx.save();
+    ctx.translate(x, y);
+    const pivotSize = Math.max(8, h * 1.5);
+    ctx.beginPath();
+    ctx.moveTo(-pivotSize * 0.6, pivotSize);
+    ctx.lineTo(pivotSize * 0.6, pivotSize);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fillStyle = "#4A2870";
+    ctx.fill();
+    ctx.strokeStyle = "#3A1860";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Pivot circle at center
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(3, h * 0.4), 0, Math.PI * 2);
+    ctx.fillStyle = isHit ? COLORS.gold : "#D4A8FF";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   drawTrampoline(x: number, y: number): void {
     const ctx = this.ctx;
 
@@ -1655,6 +1718,39 @@ export class Renderer {
       ctx.fill();
 
       ctx.restore();
+    } else if (type === "seesaw") {
+      const boardW = 50;
+      const boardH = 8;
+      const seesawAngle = Math.sin(this.t * 1.2) * 0.3;
+
+      ctx.save();
+      ctx.translate(x, previewY);
+      ctx.rotate(seesawAngle);
+
+      // Board
+      const grad = ctx.createLinearGradient(-boardW / 2, 0, boardW / 2, 0);
+      grad.addColorStop(0, "#5B3A8C");
+      grad.addColorStop(0.5, "#8E6BBE");
+      grad.addColorStop(1, "#5B3A8C");
+      ctx.beginPath();
+      ctx.roundRect(-boardW / 2, -boardH / 2, boardW, boardH, 3);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = "#4A2870";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Pivot triangle
+      const pivotSize = 8;
+      ctx.beginPath();
+      ctx.moveTo(x - pivotSize * 0.6, previewY + pivotSize);
+      ctx.lineTo(x + pivotSize * 0.6, previewY + pivotSize);
+      ctx.lineTo(x, previewY);
+      ctx.closePath();
+      ctx.fillStyle = "#4A2870";
+      ctx.fill();
     }
 
     // Label
