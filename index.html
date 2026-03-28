@@ -190,6 +190,35 @@
       font-weight: bold;
       line-height: 1;
     }
+    /* シーソー */
+    .icon-seesaw {
+      position: relative;
+      width: 36px;
+      height: 24px;
+    }
+    .icon-seesaw::before {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 0;
+      width: 36px;
+      height: 8px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, #5B3A8C, #8E6BBE 50%, #5B3A8C);
+      transform: rotate(-8deg);
+    }
+    .icon-seesaw::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 10px solid #4A2870;
+    }
 
     /* あそぶボタン */
     .play-btn {
@@ -337,6 +366,10 @@
       <div class="obstacle-card" data-type="cross">
         <div class="icon"><div class="icon-cross">✕</div></div>
         <span>くるくる</span>
+      </div>
+      <div class="obstacle-card" data-type="seesaw">
+        <div class="icon"><div class="icon-seesaw"></div></div>
+        <span>シーソー</span>
       </div>
     </div>
 
