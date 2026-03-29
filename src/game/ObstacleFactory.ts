@@ -70,25 +70,44 @@ export function createSeesawBody(cx: number, cy: number, w: number, h: number): 
   });
 }
 
-/** U字型（ushape）のボディを作成します。(cx, cy) が底の中心になります */
-export function createUShapeBody(cx: number, cy: number, size: number): Matter.Body {
-  const wallH = size * 3;
-  const wallW = size * 0.3;
-  const bottomW = size * 2.5;
-  const bottomH = wallW;
-  const halfSpan = (bottomW - wallW) / 2;
+/** C字型（ushape）の円弧パラメータ */
+export const USHAPE_ARC = {
+  /** 開口部の半角（上向き開口、ラジアン） */
+  gapHalfAngle: Math.PI * 0.25,
+  /** 円弧を構成するセグメント数 */
+  segments: 12,
+  /** 壁の太さの比率（radius に対する） */
+  wallRatio: 0.2,
+};
 
-  const leftWall = Matter.Bodies.rectangle(cx - halfSpan, cy - wallH / 2, wallW, wallH, {
-    render: { visible: false },
-  });
-  const rightWall = Matter.Bodies.rectangle(cx + halfSpan, cy - wallH / 2, wallW, wallH, {
-    render: { visible: false },
-  });
-  const bottom = Matter.Bodies.rectangle(cx, cy, bottomW, bottomH, {
-    render: { visible: false },
-  });
+/** C字型（ushape）のボディを作成します。(cx, cy) が円の中心になります */
+export function createUShapeBody(cx: number, cy: number, size: number): Matter.Body {
+  const radius = size;
+  const wallThick = size * USHAPE_ARC.wallRatio;
+  const gap = USHAPE_ARC.gapHalfAngle;
+  const segments = USHAPE_ARC.segments;
+
+  // 開口部を上に向けます: -π/2 を中心に gap 分の隙間を空けます
+  const startAngle = -Math.PI / 2 + gap;
+  const endAngle = -Math.PI / 2 + Math.PI * 2 - gap;
+  const arcSpan = endAngle - startAngle;
+  const segAngle = arcSpan / segments;
+  const segLen = 2 * radius * Math.sin(segAngle / 2);
+
+  const parts: Matter.Body[] = [];
+  for (let i = 0; i < segments; i++) {
+    const midAngle = startAngle + segAngle * (i + 0.5);
+    const px = cx + Math.cos(midAngle) * radius;
+    const py = cy + Math.sin(midAngle) * radius;
+    const seg = Matter.Bodies.rectangle(px, py, segLen, wallThick, {
+      angle: midAngle,
+      render: { visible: false },
+    });
+    parts.push(seg);
+  }
+
   return Matter.Body.create({
-    parts: [leftWall, rightWall, bottom],
+    parts,
     isStatic: true,
     restitution: 0.4,
     friction: 0.01,
