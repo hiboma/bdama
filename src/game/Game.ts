@@ -356,13 +356,14 @@ export class Game {
       }
     }
 
-    // U字型障害物は底の中心を pivot にして等速回転します
+    // U字型障害物は円の中心より上（開口部寄り）を pivot にして等速回転します
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.uShapeBodies.length; i++) {
         const us = this.generatedUShapes[i]!;
         const dir = this.uShapeDirections[i] ?? 1;
+        const radius = us.size * this.width;
         const pivotX = us.x * this.width;
-        const pivotY = us.y * this.height;
+        const pivotY = us.y * this.height - radius * 0.5;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (Matter.Body.rotate as any)(this.uShapeBodies[i]!, 0.015 * dir, { x: pivotX, y: pivotY });
       }
@@ -525,9 +526,17 @@ export class Game {
       const hitTime = body ? this.uShapeHitTimes.get(body.id) : undefined;
       const hitAge5 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
       const angle = body ? body.angle : 0;
+      // pivot が円の中心から上にオフセットしているため、描画位置を回転に追従させます
+      const radius = us.size * this.width;
+      const pivotX = us.x * this.width;
+      const pivotY = us.y * this.height - radius * 0.5;
+      const dx = us.x * this.width - pivotX;
+      const dy = us.y * this.height - pivotY;
+      const drawX = pivotX + dx * Math.cos(angle) - dy * Math.sin(angle);
+      const drawY = pivotY + dx * Math.sin(angle) + dy * Math.cos(angle);
       this.renderer.drawUShape(
-        us.x * this.width,
-        us.y * this.height,
+        drawX,
+        drawY,
         us.size * this.width,
         angle,
         hitAge5,
