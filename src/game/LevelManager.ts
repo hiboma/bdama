@@ -23,6 +23,13 @@ export interface CrossData {
   size: number;
 }
 
+export interface SeesawData {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface LevelData {
   level: number;
   start: { x: number; y: number };
