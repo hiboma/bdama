@@ -1180,7 +1180,8 @@ export class Game {
     const gridTop = modeY + 32;
     const cardH = 64;
     const gapY = 8;
-    const gridRows = Math.ceil(5 / 2); // 5 obstacle types
+    const obstacleTypeCount = 5; // rect, circle, triangle, cross, seesaw
+    const gridRows = Math.ceil(obstacleTypeCount / 2);
     const gridBottom = gridTop + gridRows * (cardH + gapY);
     const btnY = gridBottom + 20;
     const panelTop = btnY + 34;
@@ -1785,6 +1786,11 @@ export class Game {
     this.crossBodies = [];
     this.crossHitTimes.clear();
     this.crossDirections = [];
+    this.generatedSeesaws = [];
+    this.seesawBodies = [];
+    this.seesawHitTimes.clear();
+    this.seesawPhases = [];
+    this.seesawSpeeds = [];
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -2424,6 +2430,11 @@ export class Game {
       const body = this.seesawBodies[index];
       if (body) {
         Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        const sw = this.generatedSeesaws[index];
+        if (sw) {
+          sw.x = clampedX / this.width;
+          sw.y = clampedY / this.height;
+        }
       }
     }
   }
