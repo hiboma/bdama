@@ -12,6 +12,10 @@ import {
   createCrossBody,
   createSeesawBody,
   createUShapeBody,
+  rotateCross,
+  swaySeesaw,
+  rotateUShape,
+  getUShapeDrawPosition,
 } from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
@@ -338,34 +342,17 @@ export class Game {
     //   }
     // }
 
-    // クロス障害物は常に回転させます
+    // 障害物のアニメーション
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.crossBodies.length; i++) {
-        const dir = this.crossDirections[i] ?? 1;
-        Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
+        rotateCross(this.crossBodies[i]!, this.crossDirections[i] ?? 1);
       }
-    }
-
-    // シーソーをゆらゆら揺らします
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.seesawBodies.length; i++) {
-        const phase = this.seesawPhases[i] ?? 0;
-        const speed = this.seesawSpeeds[i] ?? 0.8;
-        const angle = Math.sin(this.elapsed * speed + phase) * 0.3;
-        Matter.Body.setAngle(this.seesawBodies[i]!, angle);
+        swaySeesaw(this.seesawBodies[i]!, this.elapsed, this.seesawSpeeds[i] ?? 0.8, this.seesawPhases[i] ?? 0);
       }
-    }
-
-    // U字型障害物は円の中心より上（開口部寄り）を pivot にして等速回転します
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.uShapeBodies.length; i++) {
         const us = this.generatedUShapes[i]!;
-        const dir = this.uShapeDirections[i] ?? 1;
-        const radius = us.size * this.width;
-        const pivotX = us.x * this.width;
-        const pivotY = us.y * this.height - radius * 0.5;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (Matter.Body.rotate as any)(this.uShapeBodies[i]!, 0.015 * dir, { x: pivotX, y: pivotY });
+        rotateUShape(this.uShapeBodies[i]!, this.uShapeDirections[i] ?? 1, us.x * this.width, us.y * this.height, us.size * this.width);
       }
     }
 
@@ -526,21 +513,9 @@ export class Game {
       const hitTime = body ? this.uShapeHitTimes.get(body.id) : undefined;
       const hitAge5 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
       const angle = body ? body.angle : 0;
-      // pivot が円の中心から上にオフセットしているため、描画位置を回転に追従させます
       const radius = us.size * this.width;
-      const pivotX = us.x * this.width;
-      const pivotY = us.y * this.height - radius * 0.5;
-      const dx = us.x * this.width - pivotX;
-      const dy = us.y * this.height - pivotY;
-      const drawX = pivotX + dx * Math.cos(angle) - dy * Math.sin(angle);
-      const drawY = pivotY + dx * Math.sin(angle) + dy * Math.cos(angle);
-      this.renderer.drawUShape(
-        drawX,
-        drawY,
-        us.size * this.width,
-        angle,
-        hitAge5,
-      );
+      const pos = getUShapeDrawPosition(us.x * this.width, us.y * this.height, radius, angle);
+      this.renderer.drawUShape(pos.x, pos.y, radius, angle, hitAge5);
     }
 
     for (const t of level.trampolines) {

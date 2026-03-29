@@ -1,5 +1,67 @@
 import Matter from "matter-js";
 
+// ================================================================
+// 回転パラメータ定数
+// ================================================================
+
+/** くるくる（cross）の回転角速度（rad/frame） */
+export const CROSS_ROTATE_SPEED = 0.02;
+
+/** シーソー（seesaw）の揺れパラメータ */
+export const SEESAW_SWAY = {
+  /** 揺れの最大角度（rad） */
+  maxAngle: 0.3,
+};
+
+/** C字型（ushape）の回転パラメータ */
+export const USHAPE_ROTATE = {
+  /** 回転角速度（rad/frame） */
+  speed: 0.015,
+  /** pivot の上方向オフセット比率（radius に対する） */
+  pivotOffsetRatio: 0.5,
+};
+
+// ================================================================
+// 回転ヘルパー関数
+// ================================================================
+
+/** くるくる（cross）を等速回転させます */
+export function rotateCross(body: Matter.Body, dir: number): void {
+  Matter.Body.rotate(body, CROSS_ROTATE_SPEED * dir);
+}
+
+/** シーソー（seesaw）を揺らします */
+export function swaySeesaw(body: Matter.Body, elapsed: number, speed: number, phase: number): void {
+  const angle = Math.sin(elapsed * speed + phase) * SEESAW_SWAY.maxAngle;
+  Matter.Body.setAngle(body, angle);
+}
+
+/** C字型（ushape）を pivot を中心に等速回転させます */
+export function rotateUShape(body: Matter.Body, dir: number, centerX: number, centerY: number, radius: number): void {
+  const pivotX = centerX;
+  const pivotY = centerY - radius * USHAPE_ROTATE.pivotOffsetRatio;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (Matter.Body.rotate as any)(body, USHAPE_ROTATE.speed * dir, { x: pivotX, y: pivotY });
+}
+
+/** C字型（ushape）の回転を考慮した描画位置を計算します */
+export function getUShapeDrawPosition(
+  centerX: number, centerY: number, radius: number, angle: number,
+): { x: number; y: number } {
+  const pivotX = centerX;
+  const pivotY = centerY - radius * USHAPE_ROTATE.pivotOffsetRatio;
+  const dx = centerX - pivotX;
+  const dy = centerY - pivotY;
+  return {
+    x: pivotX + dx * Math.cos(angle) - dy * Math.sin(angle),
+    y: pivotY + dx * Math.sin(angle) + dy * Math.cos(angle),
+  };
+}
+
+// ================================================================
+// ボディ作成関数
+// ================================================================
+
 /** しかく（rect）のボディを作成します */
 export function createObstacleBody(cx: number, cy: number, w: number, h: number): Matter.Body {
   return Matter.Bodies.rectangle(cx, cy, w, h, {

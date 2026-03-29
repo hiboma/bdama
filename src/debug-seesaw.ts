@@ -1,12 +1,14 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
-import { createSeesawBody } from "./game/ObstacleFactory";
+import { createSeesawBody, swaySeesaw } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let w: number;
 let h: number;
 let rotating = false;
 let elapsed = 0;
+const speed = 0.8;
+const phase = 0;
 
 startDebugScene({
   name: "シーソー (seesaw)",
@@ -24,8 +26,7 @@ startDebugScene({
   update: (dt) => {
     if (rotating) {
       elapsed += dt;
-      const angle = Math.sin(elapsed * 0.8) * 0.3;
-      Matter.Body.setAngle(body, angle);
+      swaySeesaw(body, elapsed, speed, phase);
     }
   },
   toggleRotation: () => { rotating = !rotating; },
