@@ -1,13 +1,13 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
-import { createUShapeBody, rotateUShapeAroundPivot } from "./game/ObstacleFactory";
+import { createUShapeBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let uCx: number;
 let uCy: number;
 let uSize: number;
 let rotating = false;
-let elapsed = 0;
+let dir = 1;
 
 startDebugScene({
   name: "ユーがた (ushape)",
@@ -27,11 +27,10 @@ startDebugScene({
     ctx.fillStyle = "#FF0";
     ctx.fill();
   },
-  update: (dt) => {
+  update: () => {
     if (rotating) {
-      elapsed += dt;
-      const newAngle = Math.sin(elapsed * 0.5) * Math.PI;
-      rotateUShapeAroundPivot(body, newAngle, uCx, uCy);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (Matter.Body.rotate as any)(body, 0.015 * dir, { x: uCx, y: uCy });
     }
   },
   toggleRotation: () => { rotating = !rotating; },

@@ -3,6 +3,11 @@ import { resolve } from "path";
 
 export default defineConfig({
   base: "/bdama/",
+  server: {
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  },
   build: {
     rollupOptions: {
       input: {

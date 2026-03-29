@@ -12,7 +12,6 @@ import {
   createCrossBody,
   createSeesawBody,
   createUShapeBody,
-  rotateUShapeAroundPivot,
 } from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
@@ -120,7 +119,6 @@ export class Game {
   private uShapeBodies: Matter.Body[] = [];
   private uShapeHitTimes: Map<number, number> = new Map();
   private uShapeDirections: number[] = [];
-  private uShapePhases: number[] = [];
   private obstaclePivots: ("center" | "left" | "right")[] = [];
   private obstacleBasePositions: { x: number; y: number }[] = [];
   private obstaclePhases: number[] = [];
@@ -358,14 +356,15 @@ export class Game {
       }
     }
 
-    // U字型障害物は底の中心を pivot にして振り子回転を行います
+    // U字型障害物は底の中心を pivot にして等速回転します
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.uShapeBodies.length; i++) {
         const us = this.generatedUShapes[i]!;
         const dir = this.uShapeDirections[i] ?? 1;
-        const phase = this.uShapePhases[i] ?? 0;
-        const newAngle = Math.sin(this.elapsed * 0.5 + phase) * Math.PI * dir;
-        rotateUShapeAroundPivot(this.uShapeBodies[i]!, newAngle, us.x * this.width, us.y * this.height);
+        const pivotX = us.x * this.width;
+        const pivotY = us.y * this.height;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (Matter.Body.rotate as any)(this.uShapeBodies[i]!, 0.015 * dir, { x: pivotX, y: pivotY });
       }
     }
 
@@ -1792,7 +1791,7 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
-    this.uShapePhases = [];
+
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -1916,7 +1915,6 @@ export class Game {
           const size = 0.04 + this.getRandom() * 0.025;
           this.generatedUShapes.push({ x: ox, y: oy, size });
           this.uShapeDirections.push(this.getRandom() < 0.5 ? 1 : -1);
-          this.uShapePhases.push(this.getRandom() * Math.PI * 2);
         }
       }
     }
@@ -2202,7 +2200,7 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
-    this.uShapePhases = [];
+
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
