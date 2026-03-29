@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
-import { createCrossBody } from "./game/ObstacleFactory";
+import { createCrossBody, rotateCross } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let cx: number;
@@ -23,7 +23,7 @@ startDebugScene({
   },
   update: () => {
     if (rotating) {
-      Matter.Body.rotate(body, 0.02 * dir);
+      rotateCross(body, dir);
     }
   },
   toggleRotation: () => { rotating = !rotating; },
