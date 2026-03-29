@@ -784,12 +784,17 @@ export class Renderer {
     }
 
     const s = size * scale;
+    // Matter.Bodies.polygon を -30度回転した「上を向いた正三角形」の頂点座標
+    // v0: (s*√3/2, s/2)   右下
+    // v1: (-s*√3/2, s/2)  左下
+    // v2: (0, -s)          上
+    const hw = s * Math.sqrt(3) / 2;
 
     // Shadow
     ctx.beginPath();
-    ctx.moveTo(x + 2, y - s * 0.7 + 2);
-    ctx.lineTo(x + s + 2, y + s * 0.5 + 2);
-    ctx.lineTo(x - s + 2, y + s * 0.5 + 2);
+    ctx.moveTo(x + 2, y - s + 2);
+    ctx.lineTo(x + hw + 2, y + s / 2 + 2);
+    ctx.lineTo(x - hw + 2, y + s / 2 + 2);
     ctx.closePath();
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fill();
@@ -797,14 +802,14 @@ export class Renderer {
     // Body
     const baseColor = isHit ? COLORS.goldLight : COLORS.green;
     const darkColor = isHit ? COLORS.gold : "#1B8C4F";
-    const grad = ctx.createLinearGradient(x, y - s, x, y + s * 0.6);
+    const grad = ctx.createLinearGradient(x, y - s, x, y + s / 2);
     grad.addColorStop(0, baseColor);
     grad.addColorStop(1, darkColor);
 
     ctx.beginPath();
-    ctx.moveTo(x, y - s * 0.7);
-    ctx.lineTo(x + s, y + s * 0.5);
-    ctx.lineTo(x - s, y + s * 0.5);
+    ctx.moveTo(x, y - s);
+    ctx.lineTo(x + hw, y + s / 2);
+    ctx.lineTo(x - hw, y + s / 2);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
@@ -816,9 +821,9 @@ export class Renderer {
 
     // Highlight
     ctx.beginPath();
-    ctx.moveTo(x, y - s * 0.5);
-    ctx.lineTo(x + s * 0.4, y + s * 0.1);
-    ctx.lineTo(x - s * 0.1, y + s * 0.1);
+    ctx.moveTo(x, y - s * 0.6);
+    ctx.lineTo(x + hw * 0.35, y);
+    ctx.lineTo(x - hw * 0.1, y);
     ctx.closePath();
     ctx.fillStyle = "rgba(255,255,255,0.15)";
     ctx.fill();
@@ -1753,15 +1758,16 @@ export class Renderer {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.fill();
     } else if (type === "triangle") {
-      const s = 28;
-      const bobY = previewY; // アニメーション無効化: previewY + Math.sin(this.t * 1.0) * 6
-      const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.6);
+      const s = 22;
+      const bobY = previewY;
+      const hw = s * Math.sqrt(3) / 2;
+      const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.5);
       grad.addColorStop(0, COLORS.green);
       grad.addColorStop(1, "#1B8C4F");
       ctx.beginPath();
-      ctx.moveTo(x, bobY - s * 0.7);
-      ctx.lineTo(x + s, bobY + s * 0.5);
-      ctx.lineTo(x - s, bobY + s * 0.5);
+      ctx.moveTo(x, bobY - s);
+      ctx.lineTo(x + hw, bobY + s * 0.5);
+      ctx.lineTo(x - hw, bobY + s * 0.5);
       ctx.closePath();
       ctx.fillStyle = grad;
       ctx.fill();
@@ -1769,9 +1775,9 @@ export class Renderer {
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, bobY - s * 0.5);
-      ctx.lineTo(x + s * 0.4, bobY + s * 0.1);
-      ctx.lineTo(x - s * 0.1, bobY + s * 0.1);
+      ctx.moveTo(x, bobY - s * 0.6);
+      ctx.lineTo(x + hw * 0.4, bobY + s * 0.15);
+      ctx.lineTo(x - hw * 0.1, bobY + s * 0.15);
       ctx.closePath();
       ctx.fillStyle = "rgba(255,255,255,0.15)";
       ctx.fill();
