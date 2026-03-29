@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
-import { createUShapeBody, rotateUShapeAroundPivot } from "./game/UShape";
+import { createUShapeBody, rotateUShapeAroundPivot } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let uCx: number;

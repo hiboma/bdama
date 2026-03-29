@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
+import { createBumperBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let r: number;
@@ -10,12 +11,7 @@ startDebugScene({
     const cx = W / 2;
     const cy = H / 2;
     r = 0.05 * W;
-    body = Matter.Bodies.circle(cx, cy, r, {
-      isStatic: true,
-      restitution: 1.2,
-      friction: 0.001,
-      label: "bumper",
-    });
+    body = createBumperBody(cx, cy, r);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {

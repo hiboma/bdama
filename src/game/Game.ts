@@ -5,7 +5,15 @@ import { LevelManager } from "./LevelManager";
 import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData, UShapeData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
-import { createUShapeBody, rotateUShapeAroundPivot } from "./UShape";
+import {
+  createObstacleBody,
+  createBumperBody,
+  createTriangleBody,
+  createCrossBody,
+  createSeesawBody,
+  createUShapeBody,
+  rotateUShapeAroundPivot,
+} from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
 export type GameMode = "drawing" | "tsumiki";
@@ -1468,20 +1476,7 @@ export class Game {
     for (const obs of this.generatedObstacles) {
       const cx = obs.x * this.width;
       const cy = obs.y * this.height;
-      const obsBody = Matter.Bodies.rectangle(
-        cx,
-        cy,
-        obs.w * this.width,
-        obs.h * this.height,
-        {
-          isStatic: true,
-          friction: 0.001,
-          restitution: 0.2,
-          label: "obstacle",
-          render: { visible: false },
-          chamfer: { radius: 3 },
-        },
-      );
+      const obsBody = createObstacleBody(cx, cy, obs.w * this.width, obs.h * this.height);
       Matter.Composite.add(this.engine.world, obsBody);
       this.obstacleBodies.push(obsBody);
       const pivot = pivotChoices[Math.floor(this.getRandom() * 3)]!;
@@ -1496,18 +1491,7 @@ export class Game {
     this.bumperPhases = [];
     this.bumperBaseSizes = [];
     for (const bp of this.generatedBumpers) {
-      const bpBody = Matter.Bodies.circle(
-        bp.x * this.width,
-        bp.y * this.height,
-        bp.r * this.width,
-        {
-          isStatic: true,
-          restitution: 1.2,
-          friction: 0.001,
-          label: "bumper",
-          render: { visible: false },
-        },
-      );
+      const bpBody = createBumperBody(bp.x * this.width, bp.y * this.height, bp.r * this.width);
       Matter.Composite.add(this.engine.world, bpBody);
       this.bumperBodies.push(bpBody);
       this.bumperPhases.push(this.getRandom() * Math.PI * 2);
@@ -1521,21 +1505,7 @@ export class Game {
     for (const tri of this.generatedTriangles) {
       const cx = tri.x * this.width;
       const cy = tri.y * this.height;
-      const triBody = Matter.Bodies.polygon(
-        cx,
-        cy,
-        3,
-        tri.size * this.width,
-        {
-          isStatic: true,
-          restitution: 0.8,
-          friction: 0.001,
-          label: "triangle",
-          render: { visible: false },
-        },
-      );
-      // 上を向いた三角形にするために -30度 回転します
-      Matter.Body.rotate(triBody, -Math.PI / 6);
+      const triBody = createTriangleBody(cx, cy, tri.size * this.width);
       Matter.Composite.add(this.engine.world, triBody);
       this.triangleBodies.push(triBody);
       this.trianglePhases.push(this.getRandom() * Math.PI * 2);
@@ -1547,23 +1517,7 @@ export class Game {
     for (const cr of this.generatedCrosses) {
       const cx = cr.x * this.width;
       const cy = cr.y * this.height;
-      const armLen = cr.size * this.width * 2;
-      const armW = cr.size * this.width * 0.4;
-
-      const horizontal = Matter.Bodies.rectangle(cx, cy, armLen, armW, {
-        render: { visible: false },
-      });
-      const vertical = Matter.Bodies.rectangle(cx, cy, armW, armLen, {
-        render: { visible: false },
-      });
-      const crossBody = Matter.Body.create({
-        parts: [horizontal, vertical],
-        isStatic: true,
-        restitution: 0.6,
-        friction: 0.001,
-        label: "cross",
-        render: { visible: false },
-      });
+      const crossBody = createCrossBody(cx, cy, cr.size * this.width);
       Matter.Composite.add(this.engine.world, crossBody);
       this.crossBodies.push(crossBody);
     }
@@ -1575,20 +1529,7 @@ export class Game {
     for (const sw of this.generatedSeesaws) {
       const cx = sw.x * this.width;
       const cy = sw.y * this.height;
-      const swBody = Matter.Bodies.rectangle(
-        cx,
-        cy,
-        sw.w * this.width,
-        sw.h * this.height,
-        {
-          isStatic: true,
-          restitution: 0.4,
-          friction: 0.5,
-          label: "seesaw",
-          render: { visible: false },
-          chamfer: { radius: 2 },
-        },
-      );
+      const swBody = createSeesawBody(cx, cy, sw.w * this.width, sw.h * this.height);
       Matter.Composite.add(this.engine.world, swBody);
       this.seesawBodies.push(swBody);
       this.seesawPhases.push(this.getRandom() * Math.PI * 2);

@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
+import { createTriangleBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let size: number;
@@ -10,13 +11,7 @@ startDebugScene({
     const cx = W / 2;
     const cy = H / 2;
     size = 0.06 * W;
-    body = Matter.Bodies.polygon(cx, cy, 3, size, {
-      isStatic: true,
-      restitution: 0.8,
-      friction: 0.001,
-      label: "triangle",
-    });
-    Matter.Body.rotate(body, -Math.PI / 6);
+    body = createTriangleBody(cx, cy, size);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {
