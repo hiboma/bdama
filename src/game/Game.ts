@@ -1534,6 +1534,8 @@ export class Game {
           render: { visible: false },
         },
       );
+      // 上を向いた三角形にするために -30度 回転します
+      Matter.Body.rotate(triBody, -Math.PI / 6);
       Matter.Composite.add(this.engine.world, triBody);
       this.triangleBodies.push(triBody);
       this.trianglePhases.push(this.getRandom() * Math.PI * 2);

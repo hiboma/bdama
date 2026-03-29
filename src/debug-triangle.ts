@@ -16,6 +16,7 @@ startDebugScene({
       friction: 0.001,
       label: "triangle",
     });
+    Matter.Body.rotate(body, -Math.PI / 6);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {
