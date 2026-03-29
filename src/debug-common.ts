@@ -1,7 +1,6 @@
 import Matter from "matter-js";
 import { Renderer } from "./game/Renderer";
-
-const MARBLE_RADIUS = 17;
+import { calcMarbleRadius } from "./game/ObstacleFactory";
 
 export interface DebugSceneConfig {
   /** 障害物名（HUD 表示用） */
@@ -34,6 +33,7 @@ export function startDebugScene(config: DebugSceneConfig): void {
   canvas.style.height = `${H}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+  const marbleRadius = calcMarbleRadius(W);
   const renderer = new Renderer(ctx);
   const engine = Matter.Engine.create({ gravity: { x: 0, y: 1.2, scale: 0.001 } });
 
@@ -54,7 +54,7 @@ export function startDebugScene(config: DebugSceneConfig): void {
   const marbleColors: Map<number, number> = new Map();
 
   function dropMarble(x: number, y: number): void {
-    const marble = Matter.Bodies.circle(x, y, MARBLE_RADIUS, {
+    const marble = Matter.Bodies.circle(x, y, marbleRadius, {
       restitution: 0.5,
       friction: 0.001,
       density: 0.002,
@@ -193,7 +193,7 @@ export function startDebugScene(config: DebugSceneConfig): void {
     // ビー玉描画
     for (const m of marbles) {
       const colorIdx = marbleColors.get(m.id) ?? 2;
-      renderer.drawMarble(m.position.x, m.position.y, MARBLE_RADIUS, colorIdx);
+      renderer.drawMarble(m.position.x, m.position.y, marbleRadius, colorIdx);
     }
 
     // 物理ボディワイヤーフレーム
