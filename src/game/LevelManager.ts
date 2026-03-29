@@ -30,6 +30,12 @@ export interface SeesawData {
   h: number;
 }
 
+export interface UShapeData {
+  x: number;
+  y: number;
+  size: number;
+}
+
 export interface LevelData {
   level: number;
   start: { x: number; y: number };
