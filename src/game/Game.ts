@@ -2258,6 +2258,8 @@ export class Game {
     this.seesawSpeeds = [];
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
+    this.uShapeDirections = [];
+    this.uShapePhases = [];
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
