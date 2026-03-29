@@ -97,14 +97,3 @@ export function createUShapeBody(cx: number, cy: number, size: number): Matter.B
   });
 }
 
-/** U字型ボディを pivot を中心に回転させます */
-export function rotateUShapeAroundPivot(
-  body: Matter.Body,
-  newAngle: number,
-  pivotX: number,
-  pivotY: number,
-): void {
-  const deltaAngle = newAngle - body.angle;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (Matter.Body.rotate as any)(body, deltaAngle, { x: pivotX, y: pivotY });
-}
