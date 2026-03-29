@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
+import { createSeesawBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let w: number;
@@ -14,13 +15,7 @@ startDebugScene({
     const cy = H / 2;
     w = 0.2 * W;
     h = 0.03 * H;
-    body = Matter.Bodies.rectangle(cx, cy, w, h, {
-      isStatic: true,
-      restitution: 0.4,
-      friction: 0.5,
-      label: "seesaw",
-      chamfer: { radius: 2 },
-    });
+    body = createSeesawBody(cx, cy, w, h);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {

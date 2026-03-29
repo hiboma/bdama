@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
+import { createObstacleBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let cx: number;
@@ -14,13 +15,7 @@ startDebugScene({
     cy = H / 2;
     w = 0.15 * W;
     h = 0.04 * H;
-    body = Matter.Bodies.rectangle(cx, cy, w, h, {
-      isStatic: true,
-      friction: 0.001,
-      restitution: 0.2,
-      label: "obstacle",
-      chamfer: { radius: 3 },
-    });
+    body = createObstacleBody(cx, cy, w, h);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {

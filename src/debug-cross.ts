@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import { startDebugScene } from "./debug-common";
+import { createCrossBody } from "./game/ObstacleFactory";
 
 let body: Matter.Body;
 let cx: number;
@@ -14,22 +15,7 @@ startDebugScene({
     cx = W / 2;
     cy = H / 2;
     size = 0.06 * W;
-    const armLen = size * 2;
-    const armW = size * 0.4;
-
-    const horizontal = Matter.Bodies.rectangle(cx, cy, armLen, armW, {
-      render: { visible: false },
-    });
-    const vertical = Matter.Bodies.rectangle(cx, cy, armW, armLen, {
-      render: { visible: false },
-    });
-    body = Matter.Body.create({
-      parts: [horizontal, vertical],
-      isStatic: true,
-      restitution: 0.6,
-      friction: 0.001,
-      label: "cross",
-    });
+    body = createCrossBody(cx, cy, size);
     Matter.Composite.add(engine.world, body);
   },
   draw: (renderer) => {
