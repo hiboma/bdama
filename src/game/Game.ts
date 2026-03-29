@@ -16,6 +16,7 @@ import {
   swaySeesaw,
   rotateUShape,
   getUShapeDrawPosition,
+  calcMarbleRadius,
 } from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
@@ -43,7 +44,7 @@ const TIME_LIMIT_TSUMIKI = 60;
 const SPEED_STEPS = [0.2, 0.4, 0.8, 1.2];
 // はずみやすさステップ: 0=ぺたり, 1=すこし, 2=ふつう, 3=すごく
 const RESTITUTION_STEPS = [0.1, 0.3, 0.5, 1.0];
-const MARBLE_RADIUS = 17;
+const MARBLE_RADIUS_DEFAULT = 17;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
 ];
@@ -86,6 +87,7 @@ export class Game {
   private marbles: Matter.Body[] = [];
   private goalSensor: Matter.Body | null = null;
   private staticBodies: Matter.Body[] = [];
+  private marbleRadius = MARBLE_RADIUS_DEFAULT;
   private width = 0;
   private height = 0;
   private timeRemaining = TIME_LIMIT;
@@ -178,6 +180,7 @@ export class Game {
     const dpr = window.devicePixelRatio || 1;
     this.width = window.innerWidth;
     this.height = window.innerHeight;
+    this.marbleRadius = calcMarbleRadius(this.width);
     this.canvas.width = this.width * dpr;
     this.canvas.height = this.height * dpr;
     this.canvas.style.width = `${this.width}px`;
@@ -644,7 +647,7 @@ export class Game {
         this.renderer.drawMarble(
           marble.position.x,
           marble.position.y,
-          MARBLE_RADIUS,
+          this.marbleRadius,
           colorIndex,
           opacity,
         );
@@ -653,13 +656,13 @@ export class Game {
       this.renderer.drawMarble(
         level.start.x * this.width,
         level.start.y * this.height - 20,
-        MARBLE_RADIUS,
+        this.marbleRadius,
       );
     }
 
     // Draw white balls
     for (const wb of this.whiteBalls) {
-      this.renderer.drawRainbowMarble(wb.position.x, wb.position.y, MARBLE_RADIUS);
+      this.renderer.drawRainbowMarble(wb.position.x, wb.position.y, this.marbleRadius);
     }
 
     // Draw goal effects
@@ -953,7 +956,7 @@ export class Game {
         const dx = x - wb.position.x;
         const dy = y - wb.position.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < MARBLE_RADIUS + 10) {
+        if (dist < this.marbleRadius + 10) {
           this.sound.deny();
           return;
         }
@@ -965,7 +968,7 @@ export class Game {
         const dx = x - marble.position.x;
         const dy = y - marble.position.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < MARBLE_RADIUS + 10) {
+        if (dist < this.marbleRadius + 10) {
           const taps = (this.marbleTaps.get(marble.id) ?? 0) + 1;
           this.marbleTaps.set(marble.id, taps);
 
@@ -1431,7 +1434,7 @@ export class Game {
     const colorIndex = Math.floor(Math.random() * 7);
     const trait = MARBLE_TRAITS[colorIndex]!;
 
-    const marble = Matter.Bodies.circle(startX + offsetX, startY, MARBLE_RADIUS, {
+    const marble = Matter.Bodies.circle(startX + offsetX, startY, this.marbleRadius, {
       restitution: trait.restitution * (RESTITUTION_STEPS[this.restitutionStep]! / RESTITUTION_STEPS[2]!),
       friction: trait.friction,
       density: trait.density,
@@ -2014,44 +2017,44 @@ export class Game {
       const idx = Math.floor(this.getRandom() * this.generatedObstacles.length);
       const obs = this.generatedObstacles[idx]!;
       whiteX = obs.x * this.width;
-      whiteY = (obs.y - obs.h / 2) * this.height - MARBLE_RADIUS - 1;
+      whiteY = (obs.y - obs.h / 2) * this.height - this.marbleRadius - 1;
       placed = true;
     } else if (type === "circle" && this.generatedBumpers.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedBumpers.length);
       const bp = this.generatedBumpers[idx]!;
       whiteX = bp.x * this.width;
-      whiteY = (bp.y * this.height) - (bp.r * this.width) - MARBLE_RADIUS - 1;
+      whiteY = (bp.y * this.height) - (bp.r * this.width) - this.marbleRadius - 1;
       placed = true;
     } else if (type === "triangle" && this.generatedTriangles.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedTriangles.length);
       const tri = this.generatedTriangles[idx]!;
       whiteX = tri.x * this.width;
-      whiteY = (tri.y * this.height) - (tri.size * this.width * 0.7) - MARBLE_RADIUS - 1;
+      whiteY = (tri.y * this.height) - (tri.size * this.width * 0.7) - this.marbleRadius - 1;
       placed = true;
     } else if (type === "cross" && this.generatedCrosses.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedCrosses.length);
       const cr = this.generatedCrosses[idx]!;
       const armLen = cr.size * this.width;
       whiteX = cr.x * this.width;
-      whiteY = (cr.y * this.height) - armLen - MARBLE_RADIUS - 1;
+      whiteY = (cr.y * this.height) - armLen - this.marbleRadius - 1;
       placed = true;
     } else if (type === "seesaw" && this.generatedSeesaws.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedSeesaws.length);
       const sw = this.generatedSeesaws[idx]!;
       whiteX = sw.x * this.width;
-      whiteY = (sw.y - sw.h / 2) * this.height - MARBLE_RADIUS - 1;
+      whiteY = (sw.y - sw.h / 2) * this.height - this.marbleRadius - 1;
       placed = true;
     } else if (type === "ushape" && this.generatedUShapes.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedUShapes.length);
       const us = this.generatedUShapes[idx]!;
       whiteX = us.x * this.width;
-      whiteY = (us.y * this.height) - (us.size * this.width) - MARBLE_RADIUS - 1;
+      whiteY = (us.y * this.height) - (us.size * this.width) - this.marbleRadius - 1;
       placed = true;
     }
 
     if (!placed) return;
 
-    const wb = Matter.Bodies.circle(whiteX, whiteY, MARBLE_RADIUS, {
+    const wb = Matter.Bodies.circle(whiteX, whiteY, this.marbleRadius, {
       restitution: 0.5,
       friction: 0.001,
       density: 0.002,
