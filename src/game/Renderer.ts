@@ -784,12 +784,17 @@ export class Renderer {
     }
 
     const s = size * scale;
+    // Matter.Bodies.polygon を -30度回転した「上を向いた正三角形」の頂点座標
+    // v0: (s*√3/2, s/2)   右下
+    // v1: (-s*√3/2, s/2)  左下
+    // v2: (0, -s)          上
+    const hw = s * Math.sqrt(3) / 2;
 
     // Shadow
     ctx.beginPath();
-    ctx.moveTo(x + 2, y - s * 0.7 + 2);
-    ctx.lineTo(x + s + 2, y + s * 0.5 + 2);
-    ctx.lineTo(x - s + 2, y + s * 0.5 + 2);
+    ctx.moveTo(x + 2, y - s + 2);
+    ctx.lineTo(x + hw + 2, y + s / 2 + 2);
+    ctx.lineTo(x - hw + 2, y + s / 2 + 2);
     ctx.closePath();
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fill();
@@ -797,14 +802,14 @@ export class Renderer {
     // Body
     const baseColor = isHit ? COLORS.goldLight : COLORS.green;
     const darkColor = isHit ? COLORS.gold : "#1B8C4F";
-    const grad = ctx.createLinearGradient(x, y - s, x, y + s * 0.6);
+    const grad = ctx.createLinearGradient(x, y - s, x, y + s / 2);
     grad.addColorStop(0, baseColor);
     grad.addColorStop(1, darkColor);
 
     ctx.beginPath();
-    ctx.moveTo(x, y - s * 0.7);
-    ctx.lineTo(x + s, y + s * 0.5);
-    ctx.lineTo(x - s, y + s * 0.5);
+    ctx.moveTo(x, y - s);
+    ctx.lineTo(x + hw, y + s / 2);
+    ctx.lineTo(x - hw, y + s / 2);
     ctx.closePath();
     ctx.fillStyle = grad;
     ctx.fill();
@@ -816,9 +821,9 @@ export class Renderer {
 
     // Highlight
     ctx.beginPath();
-    ctx.moveTo(x, y - s * 0.5);
-    ctx.lineTo(x + s * 0.4, y + s * 0.1);
-    ctx.lineTo(x - s * 0.1, y + s * 0.1);
+    ctx.moveTo(x, y - s * 0.6);
+    ctx.lineTo(x + hw * 0.35, y);
+    ctx.lineTo(x - hw * 0.1, y);
     ctx.closePath();
     ctx.fillStyle = "rgba(255,255,255,0.15)";
     ctx.fill();
@@ -972,12 +977,13 @@ export class Renderer {
       scale = 1 + Math.sin(progress * Math.PI) * 0.15;
     }
 
-    // (x, y) はU字の底の中心。壁は上方向に伸びます
-    const wallH = size * scale * 3;
-    const wallW = size * scale * 0.3;
-    const bottomW = size * scale * 2.5;
-    const bottomH = wallW;
-    const halfSpan = (bottomW - wallW) / 2;
+    // C字型の円弧。(x, y) が円の中心
+    const radius = size * scale;
+    const wallThick = size * scale * 0.2;
+    const gap = Math.PI * 0.25; // 開口部の半角
+    // 開口部を上に向けます
+    const startAngle = -Math.PI / 2 + gap;
+    const endAngle = -Math.PI / 2 + Math.PI * 2 - gap;
 
     ctx.save();
     ctx.translate(x, y);
@@ -989,64 +995,37 @@ export class Renderer {
     // Shadow
     ctx.save();
     ctx.translate(2, 2);
-    ctx.fillStyle = "rgba(0,0,0,0.1)";
-    // Left wall shadow (上方向に伸びる)
     ctx.beginPath();
-    ctx.roundRect(-halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
-    ctx.fill();
-    // Right wall shadow
-    ctx.beginPath();
-    ctx.roundRect(halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
-    ctx.fill();
-    // Bottom shadow
-    ctx.beginPath();
-    ctx.roundRect(-bottomW / 2, -bottomH / 2, bottomW, bottomH, 3);
-    ctx.fill();
+    ctx.arc(0, 0, radius, startAngle, endAngle);
+    ctx.lineWidth = wallThick;
+    ctx.strokeStyle = "rgba(0,0,0,0.1)";
+    ctx.lineCap = "round";
+    ctx.stroke();
     ctx.restore();
 
-    // Left wall (上方向に伸びる)
-    const lGrad = ctx.createLinearGradient(-halfSpan - wallW / 2, 0, -halfSpan + wallW / 2, 0);
-    lGrad.addColorStop(0, darkColor);
-    lGrad.addColorStop(0.5, baseColor);
-    lGrad.addColorStop(1, darkColor);
+    // Body (太い円弧)
     ctx.beginPath();
-    ctx.roundRect(-halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
-    ctx.fillStyle = lGrad;
-    ctx.fill();
-    ctx.strokeStyle = "#6A1B9A";
-    ctx.lineWidth = 1.5;
+    ctx.arc(0, 0, radius, startAngle, endAngle);
+    ctx.lineWidth = wallThick;
+    ctx.strokeStyle = darkColor;
+    ctx.lineCap = "round";
     ctx.stroke();
 
-    // Right wall (上方向に伸びる)
-    const rGrad = ctx.createLinearGradient(halfSpan - wallW / 2, 0, halfSpan + wallW / 2, 0);
-    rGrad.addColorStop(0, darkColor);
-    rGrad.addColorStop(0.5, baseColor);
-    rGrad.addColorStop(1, darkColor);
+    // 内側のハイライト円弧
     ctx.beginPath();
-    ctx.roundRect(halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
-    ctx.fillStyle = rGrad;
-    ctx.fill();
-    ctx.strokeStyle = "#6A1B9A";
-    ctx.lineWidth = 1.5;
+    ctx.arc(0, 0, radius, startAngle, endAngle);
+    ctx.lineWidth = wallThick * 0.6;
+    ctx.strokeStyle = baseColor;
+    ctx.lineCap = "round";
     ctx.stroke();
 
-    // Bottom (原点を中心に配置)
-    const bGrad = ctx.createLinearGradient(0, -bottomH / 2, 0, bottomH / 2);
-    bGrad.addColorStop(0, baseColor);
-    bGrad.addColorStop(1, darkColor);
+    // 光沢の白い円弧（内側寄り）
     ctx.beginPath();
-    ctx.roundRect(-bottomW / 2, -bottomH / 2, bottomW, bottomH, 3);
-    ctx.fillStyle = bGrad;
-    ctx.fill();
-    ctx.strokeStyle = "#6A1B9A";
-    ctx.lineWidth = 1.5;
+    ctx.arc(0, 0, radius - wallThick * 0.15, startAngle + 0.3, startAngle + (endAngle - startAngle) * 0.35);
+    ctx.lineWidth = wallThick * 0.2;
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineCap = "round";
     ctx.stroke();
-
-    // Highlight on left wall
-    ctx.beginPath();
-    ctx.roundRect(-halfSpan - wallW / 2 + 2, -wallH + 2, wallW * 0.4, wallH * 0.3, 2);
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
-    ctx.fill();
 
     ctx.restore();
   }
@@ -1753,15 +1732,16 @@ export class Renderer {
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.fill();
     } else if (type === "triangle") {
-      const s = 28;
-      const bobY = previewY; // アニメーション無効化: previewY + Math.sin(this.t * 1.0) * 6
-      const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.6);
+      const s = 22;
+      const bobY = previewY;
+      const hw = s * Math.sqrt(3) / 2;
+      const grad = ctx.createLinearGradient(x, bobY - s, x, bobY + s * 0.5);
       grad.addColorStop(0, COLORS.green);
       grad.addColorStop(1, "#1B8C4F");
       ctx.beginPath();
-      ctx.moveTo(x, bobY - s * 0.7);
-      ctx.lineTo(x + s, bobY + s * 0.5);
-      ctx.lineTo(x - s, bobY + s * 0.5);
+      ctx.moveTo(x, bobY - s);
+      ctx.lineTo(x + hw, bobY + s * 0.5);
+      ctx.lineTo(x - hw, bobY + s * 0.5);
       ctx.closePath();
       ctx.fillStyle = grad;
       ctx.fill();
@@ -1769,9 +1749,9 @@ export class Renderer {
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x, bobY - s * 0.5);
-      ctx.lineTo(x + s * 0.4, bobY + s * 0.1);
-      ctx.lineTo(x - s * 0.1, bobY + s * 0.1);
+      ctx.moveTo(x, bobY - s * 0.6);
+      ctx.lineTo(x + hw * 0.4, bobY + s * 0.15);
+      ctx.lineTo(x - hw * 0.1, bobY + s * 0.15);
       ctx.closePath();
       ctx.fillStyle = "rgba(255,255,255,0.15)";
       ctx.fill();
@@ -1842,39 +1822,30 @@ export class Renderer {
       ctx.fillStyle = "#4A2870";
       ctx.fill();
     } else if (type === "ushape") {
-      const s = 12;
-      const wallH = s * 3;
-      const wallW = s * 0.3;
-      const bottomW = s * 2.5;
-      const halfSpan = (bottomW - wallW) / 2;
-      const pendulumAngle = Math.sin(this.t * 0.5) * Math.PI * 0.3;
+      const r = 16;
+      const thick = r * 0.25;
+      const gap = Math.PI * 0.25;
+      const sa = -Math.PI / 2 + gap;
+      const ea = -Math.PI / 2 + Math.PI * 2 - gap;
+      const rotAngle = this.t * 0.8;
 
       ctx.save();
       ctx.translate(x, previewY);
-      ctx.rotate(pendulumAngle);
+      ctx.rotate(rotAngle);
 
-      const grad = ctx.createLinearGradient(-s, 0, s, 0);
-      grad.addColorStop(0, "#7B1FA2");
-      grad.addColorStop(0.5, "#9C27B0");
-      grad.addColorStop(1, "#7B1FA2");
-
-      // Left wall
       ctx.beginPath();
-      ctx.roundRect(-halfSpan - wallW / 2, -wallH / 2, wallW, wallH, 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
+      ctx.arc(0, 0, r, sa, ea);
+      ctx.lineWidth = thick;
+      ctx.strokeStyle = "#7B1FA2";
+      ctx.lineCap = "round";
+      ctx.stroke();
 
-      // Right wall
       ctx.beginPath();
-      ctx.roundRect(halfSpan - wallW / 2, -wallH / 2, wallW, wallH, 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-
-      // Bottom
-      ctx.beginPath();
-      ctx.roundRect(-bottomW / 2, wallH / 2 - wallW, bottomW, wallW, 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
+      ctx.arc(0, 0, r, sa, ea);
+      ctx.lineWidth = thick * 0.6;
+      ctx.strokeStyle = "#9C27B0";
+      ctx.lineCap = "round";
+      ctx.stroke();
 
       ctx.restore();
     }

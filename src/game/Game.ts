@@ -5,7 +5,18 @@ import { LevelManager } from "./LevelManager";
 import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData, UShapeData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
-import { createUShapeBody, rotateUShapeAroundPivot } from "./UShape";
+import {
+  createObstacleBody,
+  createBumperBody,
+  createTriangleBody,
+  createCrossBody,
+  createSeesawBody,
+  createUShapeBody,
+  rotateCross,
+  swaySeesaw,
+  rotateUShape,
+  getUShapeDrawPosition,
+} from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
 export type GameMode = "drawing" | "tsumiki";
@@ -112,7 +123,6 @@ export class Game {
   private uShapeBodies: Matter.Body[] = [];
   private uShapeHitTimes: Map<number, number> = new Map();
   private uShapeDirections: number[] = [];
-  private uShapePhases: number[] = [];
   private obstaclePivots: ("center" | "left" | "right")[] = [];
   private obstacleBasePositions: { x: number; y: number }[] = [];
   private obstaclePhases: number[] = [];
@@ -332,32 +342,17 @@ export class Game {
     //   }
     // }
 
-    // クロス障害物は常に回転させます
+    // 障害物のアニメーション
     if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.crossBodies.length; i++) {
-        const dir = this.crossDirections[i] ?? 1;
-        Matter.Body.rotate(this.crossBodies[i]!, 0.02 * dir);
+        rotateCross(this.crossBodies[i]!, this.crossDirections[i] ?? 1);
       }
-    }
-
-    // シーソーをゆらゆら揺らします
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.seesawBodies.length; i++) {
-        const phase = this.seesawPhases[i] ?? 0;
-        const speed = this.seesawSpeeds[i] ?? 0.8;
-        const angle = Math.sin(this.elapsed * speed + phase) * 0.3;
-        Matter.Body.setAngle(this.seesawBodies[i]!, angle);
+        swaySeesaw(this.seesawBodies[i]!, this.elapsed, this.seesawSpeeds[i] ?? 0.8, this.seesawPhases[i] ?? 0);
       }
-    }
-
-    // U字型障害物は底の中心を pivot にして振り子回転を行います
-    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
       for (let i = 0; i < this.uShapeBodies.length; i++) {
         const us = this.generatedUShapes[i]!;
-        const dir = this.uShapeDirections[i] ?? 1;
-        const phase = this.uShapePhases[i] ?? 0;
-        const newAngle = Math.sin(this.elapsed * 0.5 + phase) * Math.PI * dir;
-        rotateUShapeAroundPivot(this.uShapeBodies[i]!, newAngle, us.x * this.width, us.y * this.height);
+        rotateUShape(this.uShapeBodies[i]!, this.uShapeDirections[i] ?? 1, us.x * this.width, us.y * this.height, us.size * this.width);
       }
     }
 
@@ -518,13 +513,9 @@ export class Game {
       const hitTime = body ? this.uShapeHitTimes.get(body.id) : undefined;
       const hitAge5 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
       const angle = body ? body.angle : 0;
-      this.renderer.drawUShape(
-        us.x * this.width,
-        us.y * this.height,
-        us.size * this.width,
-        angle,
-        hitAge5,
-      );
+      const radius = us.size * this.width;
+      const pos = getUShapeDrawPosition(us.x * this.width, us.y * this.height, radius, angle);
+      this.renderer.drawUShape(pos.x, pos.y, radius, angle, hitAge5);
     }
 
     for (const t of level.trampolines) {
@@ -1468,20 +1459,7 @@ export class Game {
     for (const obs of this.generatedObstacles) {
       const cx = obs.x * this.width;
       const cy = obs.y * this.height;
-      const obsBody = Matter.Bodies.rectangle(
-        cx,
-        cy,
-        obs.w * this.width,
-        obs.h * this.height,
-        {
-          isStatic: true,
-          friction: 0.001,
-          restitution: 0.2,
-          label: "obstacle",
-          render: { visible: false },
-          chamfer: { radius: 3 },
-        },
-      );
+      const obsBody = createObstacleBody(cx, cy, obs.w * this.width, obs.h * this.height);
       Matter.Composite.add(this.engine.world, obsBody);
       this.obstacleBodies.push(obsBody);
       const pivot = pivotChoices[Math.floor(this.getRandom() * 3)]!;
@@ -1496,18 +1474,7 @@ export class Game {
     this.bumperPhases = [];
     this.bumperBaseSizes = [];
     for (const bp of this.generatedBumpers) {
-      const bpBody = Matter.Bodies.circle(
-        bp.x * this.width,
-        bp.y * this.height,
-        bp.r * this.width,
-        {
-          isStatic: true,
-          restitution: 1.2,
-          friction: 0.001,
-          label: "bumper",
-          render: { visible: false },
-        },
-      );
+      const bpBody = createBumperBody(bp.x * this.width, bp.y * this.height, bp.r * this.width);
       Matter.Composite.add(this.engine.world, bpBody);
       this.bumperBodies.push(bpBody);
       this.bumperPhases.push(this.getRandom() * Math.PI * 2);
@@ -1521,19 +1488,7 @@ export class Game {
     for (const tri of this.generatedTriangles) {
       const cx = tri.x * this.width;
       const cy = tri.y * this.height;
-      const triBody = Matter.Bodies.polygon(
-        cx,
-        cy,
-        3,
-        tri.size * this.width,
-        {
-          isStatic: true,
-          restitution: 0.8,
-          friction: 0.001,
-          label: "triangle",
-          render: { visible: false },
-        },
-      );
+      const triBody = createTriangleBody(cx, cy, tri.size * this.width);
       Matter.Composite.add(this.engine.world, triBody);
       this.triangleBodies.push(triBody);
       this.trianglePhases.push(this.getRandom() * Math.PI * 2);
@@ -1545,23 +1500,7 @@ export class Game {
     for (const cr of this.generatedCrosses) {
       const cx = cr.x * this.width;
       const cy = cr.y * this.height;
-      const armLen = cr.size * this.width * 2;
-      const armW = cr.size * this.width * 0.4;
-
-      const horizontal = Matter.Bodies.rectangle(cx, cy, armLen, armW, {
-        render: { visible: false },
-      });
-      const vertical = Matter.Bodies.rectangle(cx, cy, armW, armLen, {
-        render: { visible: false },
-      });
-      const crossBody = Matter.Body.create({
-        parts: [horizontal, vertical],
-        isStatic: true,
-        restitution: 0.6,
-        friction: 0.001,
-        label: "cross",
-        render: { visible: false },
-      });
+      const crossBody = createCrossBody(cx, cy, cr.size * this.width);
       Matter.Composite.add(this.engine.world, crossBody);
       this.crossBodies.push(crossBody);
     }
@@ -1573,20 +1512,7 @@ export class Game {
     for (const sw of this.generatedSeesaws) {
       const cx = sw.x * this.width;
       const cy = sw.y * this.height;
-      const swBody = Matter.Bodies.rectangle(
-        cx,
-        cy,
-        sw.w * this.width,
-        sw.h * this.height,
-        {
-          isStatic: true,
-          restitution: 0.4,
-          friction: 0.5,
-          label: "seesaw",
-          render: { visible: false },
-          chamfer: { radius: 2 },
-        },
-      );
+      const swBody = createSeesawBody(cx, cy, sw.w * this.width, sw.h * this.height);
       Matter.Composite.add(this.engine.world, swBody);
       this.seesawBodies.push(swBody);
       this.seesawPhases.push(this.getRandom() * Math.PI * 2);
@@ -1849,7 +1775,7 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
-    this.uShapePhases = [];
+
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -1973,7 +1899,6 @@ export class Game {
           const size = 0.04 + this.getRandom() * 0.025;
           this.generatedUShapes.push({ x: ox, y: oy, size });
           this.uShapeDirections.push(this.getRandom() < 0.5 ? 1 : -1);
-          this.uShapePhases.push(this.getRandom() * Math.PI * 2);
         }
       }
     }
@@ -2259,7 +2184,7 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
-    this.uShapePhases = [];
+
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;

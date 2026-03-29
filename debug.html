@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>U字型デバッグ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>デバッグ - 障害物一覧</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&display=swap" rel="stylesheet">
@@ -11,20 +11,108 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%;
-      height: 100dvh;
-      overflow: hidden;
-      background: #222;
-      font-family: 'Hachi Maru Pop', monospace;
+      min-height: 100dvh;
+      background: #FFF8E1;
+      font-family: 'Hachi Maru Pop', cursive;
+      color: #4a2020;
     }
-    canvas {
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 32px 16px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 24px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 20px 12px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      text-decoration: none;
+      color: #4a2020;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+    .card:active { transform: scale(0.97); }
+    .card .icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    .card .label { font-size: 13px; }
+    .icon-rect { background: #E74C3C; width: 36px; height: 16px; border-radius: 4px; }
+    .icon-circle { background: #2980B9; width: 28px; height: 28px; border-radius: 50%; }
+    .icon-triangle { width: 0; height: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-bottom: 28px solid #27AE60; }
+    .icon-cross { color: #F39C12; font-size: 32px; font-weight: bold; }
+    .icon-seesaw { width: 36px; height: 8px; border-radius: 3px; background: linear-gradient(90deg, #5B3A8C, #8E6BBE 50%, #5B3A8C); transform: rotate(-8deg); }
+    .icon-ushape { width: 24px; height: 24px; border: 4px solid #9C27B0; border-top-color: transparent; border-radius: 50%; }
+    .back {
       display: block;
-      width: 100%;
-      height: 100%;
+      text-align: center;
+      margin-top: 24px;
+      color: #aaa;
+      font-size: 12px;
+      text-decoration: none;
     }
+    .back:hover { color: #666; }
   </style>
 </head>
 <body>
-  <canvas id="debug-canvas"></canvas>
-  <script type="module" src="/src/debug.ts"></script>
+  <div class="container">
+    <h1>デバッグ</h1>
+    <p class="subtitle">障害物の衝突判定をテストします</p>
+    <div class="grid">
+      <a class="card" href="/bdama/debug/rect.html">
+        <div class="icon"><div class="icon-rect"></div></div>
+        <span class="label">しかく</span>
+      </a>
+      <a class="card" href="/bdama/debug/circle.html">
+        <div class="icon"><div class="icon-circle"></div></div>
+        <span class="label">まる</span>
+      </a>
+      <a class="card" href="/bdama/debug/triangle.html">
+        <div class="icon"><div class="icon-triangle"></div></div>
+        <span class="label">さんかく</span>
+      </a>
+      <a class="card" href="/bdama/debug/cross.html">
+        <div class="icon"><div class="icon-cross">&#10005;</div></div>
+        <span class="label">くるくる</span>
+      </a>
+      <a class="card" href="/bdama/debug/seesaw.html">
+        <div class="icon"><div class="icon-seesaw"></div></div>
+        <span class="label">シーソー</span>
+      </a>
+      <a class="card" href="/bdama/debug/ushape.html">
+        <div class="icon"><div class="icon-ushape"></div></div>
+        <span class="label">ユーがた</span>
+      </a>
+    </div>
+    <a class="back" href="/bdama/">← ゲームに戻る</a>
+  </div>
 </body>
 </html>
