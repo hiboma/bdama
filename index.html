@@ -43,7 +43,8 @@
       gap: 0;
       padding: 16px;
       position: relative;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     /* 背景をpseudo要素にしてガタを防止します */
     #title-screen::before {
@@ -220,6 +221,25 @@
       border-bottom: 10px solid #4A2870;
     }
 
+    /* U字型 */
+    .icon-ushape {
+      position: relative;
+      width: 28px;
+      height: 28px;
+    }
+    .icon-ushape::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 28px;
+      height: 28px;
+      border: 5px solid #9C27B0;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      box-sizing: border-box;
+    }
+
     /* あそぶボタン */
     .play-btn {
       padding: 14px 64px;
@@ -371,6 +391,10 @@
         <div class="icon"><div class="icon-seesaw"></div></div>
         <span>シーソー</span>
       </div>
+      <div class="obstacle-card" data-type="ushape">
+        <div class="icon"><div class="icon-ushape"></div></div>
+        <span>ユーがた</span>
+      </div>
     </div>
 
     <div class="section-gap-md"></div>
@@ -403,6 +427,8 @@
         <div class="toggle-switch" id="free-toggle"></div>
       </div>
     </div>
+
+    <div style="margin-top: 12px;"><a href="/bdama/debug.html" style="color: #aaa; font-size: 10px; text-decoration: none;">debug</a></div>
   </div>
 
   <!-- ゲーム画面 (Canvas) -->

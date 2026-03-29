@@ -105,8 +105,8 @@ export class Renderer {
     const gapX = 12;
     const gapY = 8;
     const gridTop = modeY + 32;
-    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw"];
-    const labels = ["しかく", "まる", "さんかく", "くるくる", "シーソー"];
+    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape"];
+    const labels = ["しかく", "まる", "さんかく", "くるくる", "シーソー", "ユーがた"];
 
     for (let i = 0; i < types.length; i++) {
       const col = i % 2;
@@ -961,6 +961,96 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawUShape(x: number, y: number, size: number, angle: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    let scale = 1;
+    if (isHit) {
+      const progress = hitAge / HIT_DURATION;
+      scale = 1 + Math.sin(progress * Math.PI) * 0.15;
+    }
+
+    // (x, y) はU字の底の中心。壁は上方向に伸びます
+    const wallH = size * scale * 3;
+    const wallW = size * scale * 0.3;
+    const bottomW = size * scale * 2.5;
+    const bottomH = wallW;
+    const halfSpan = (bottomW - wallW) / 2;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const baseColor = isHit ? "#B39DDB" : "#9C27B0";
+    const darkColor = isHit ? "#9C27B0" : "#7B1FA2";
+
+    // Shadow
+    ctx.save();
+    ctx.translate(2, 2);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    // Left wall shadow (上方向に伸びる)
+    ctx.beginPath();
+    ctx.roundRect(-halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
+    ctx.fill();
+    // Right wall shadow
+    ctx.beginPath();
+    ctx.roundRect(halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
+    ctx.fill();
+    // Bottom shadow
+    ctx.beginPath();
+    ctx.roundRect(-bottomW / 2, -bottomH / 2, bottomW, bottomH, 3);
+    ctx.fill();
+    ctx.restore();
+
+    // Left wall (上方向に伸びる)
+    const lGrad = ctx.createLinearGradient(-halfSpan - wallW / 2, 0, -halfSpan + wallW / 2, 0);
+    lGrad.addColorStop(0, darkColor);
+    lGrad.addColorStop(0.5, baseColor);
+    lGrad.addColorStop(1, darkColor);
+    ctx.beginPath();
+    ctx.roundRect(-halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
+    ctx.fillStyle = lGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#6A1B9A";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Right wall (上方向に伸びる)
+    const rGrad = ctx.createLinearGradient(halfSpan - wallW / 2, 0, halfSpan + wallW / 2, 0);
+    rGrad.addColorStop(0, darkColor);
+    rGrad.addColorStop(0.5, baseColor);
+    rGrad.addColorStop(1, darkColor);
+    ctx.beginPath();
+    ctx.roundRect(halfSpan - wallW / 2, -wallH, wallW, wallH, 3);
+    ctx.fillStyle = rGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#6A1B9A";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Bottom (原点を中心に配置)
+    const bGrad = ctx.createLinearGradient(0, -bottomH / 2, 0, bottomH / 2);
+    bGrad.addColorStop(0, baseColor);
+    bGrad.addColorStop(1, darkColor);
+    ctx.beginPath();
+    ctx.roundRect(-bottomW / 2, -bottomH / 2, bottomW, bottomH, 3);
+    ctx.fillStyle = bGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#6A1B9A";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Highlight on left wall
+    ctx.beginPath();
+    ctx.roundRect(-halfSpan - wallW / 2 + 2, -wallH + 2, wallW * 0.4, wallH * 0.3, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   drawTrampoline(x: number, y: number): void {
     const ctx = this.ctx;
 
@@ -1751,6 +1841,42 @@ export class Renderer {
       ctx.closePath();
       ctx.fillStyle = "#4A2870";
       ctx.fill();
+    } else if (type === "ushape") {
+      const s = 12;
+      const wallH = s * 3;
+      const wallW = s * 0.3;
+      const bottomW = s * 2.5;
+      const halfSpan = (bottomW - wallW) / 2;
+      const pendulumAngle = Math.sin(this.t * 0.5) * Math.PI * 0.3;
+
+      ctx.save();
+      ctx.translate(x, previewY);
+      ctx.rotate(pendulumAngle);
+
+      const grad = ctx.createLinearGradient(-s, 0, s, 0);
+      grad.addColorStop(0, "#7B1FA2");
+      grad.addColorStop(0.5, "#9C27B0");
+      grad.addColorStop(1, "#7B1FA2");
+
+      // Left wall
+      ctx.beginPath();
+      ctx.roundRect(-halfSpan - wallW / 2, -wallH / 2, wallW, wallH, 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Right wall
+      ctx.beginPath();
+      ctx.roundRect(halfSpan - wallW / 2, -wallH / 2, wallW, wallH, 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Bottom
+      ctx.beginPath();
+      ctx.roundRect(-bottomW / 2, wallH / 2 - wallW, bottomW, wallW, 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.restore();
     }
 
     // Label
