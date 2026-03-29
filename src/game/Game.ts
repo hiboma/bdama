@@ -2,13 +2,14 @@ import Matter from "matter-js";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { LevelManager } from "./LevelManager";
-import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData } from "./LevelManager";
+import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData, UShapeData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
+import { createUShapeBody, rotateUShapeAroundPivot } from "./UShape";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
 export type GameMode = "drawing" | "tsumiki";
-export type ObstacleType = "rect" | "circle" | "triangle" | "cross" | "seesaw";
+export type ObstacleType = "rect" | "circle" | "triangle" | "cross" | "seesaw" | "ushape";
 
 export interface GoalEffect {
   x: number;
@@ -107,6 +108,11 @@ export class Game {
   private seesawHitTimes: Map<number, number> = new Map();
   private seesawPhases: number[] = [];
   private seesawSpeeds: number[] = [];
+  private generatedUShapes: UShapeData[] = [];
+  private uShapeBodies: Matter.Body[] = [];
+  private uShapeHitTimes: Map<number, number> = new Map();
+  private uShapeDirections: number[] = [];
+  private uShapePhases: number[] = [];
   private obstaclePivots: ("center" | "left" | "right")[] = [];
   private obstacleBasePositions: { x: number; y: number }[] = [];
   private obstaclePhases: number[] = [];
@@ -130,7 +136,7 @@ export class Game {
   // 積み木モード用プロパティ
   private tsumikiShelves: { x: number; y: number; length: number; angle: number; body: Matter.Body | null; moved: boolean }[] = [];
   private tsumikiSelectedIndex = -1; // 選択中のパーツのインデックス（-1:なし, 0〜:障害物, 1000〜:棚）
-  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "shelf" | null = null;
+  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "shelf" | null = null;
   private tsumikiRotating = false;
   private tsumikiRotateCenter: { x: number; y: number } | null = null;
   private tsumikiDragging = false;
@@ -344,6 +350,17 @@ export class Game {
       }
     }
 
+    // U字型障害物は底の中心を pivot にして振り子回転を行います
+    if (this.state === "playing" || this.state === "drawing" || this.state === "rolling") {
+      for (let i = 0; i < this.uShapeBodies.length; i++) {
+        const us = this.generatedUShapes[i]!;
+        const dir = this.uShapeDirections[i] ?? 1;
+        const phase = this.uShapePhases[i] ?? 0;
+        const newAngle = Math.sin(this.elapsed * 0.5 + phase) * Math.PI * dir;
+        rotateUShapeAroundPivot(this.uShapeBodies[i]!, newAngle, us.x * this.width, us.y * this.height);
+      }
+    }
+
     // Update goal effects
     for (const effect of this.goalEffects) {
       effect.age += dt;
@@ -383,7 +400,7 @@ export class Game {
         const tsumikiScore = this.calculateTsumikiScore();
         const unusedBonus = Math.max(0,
           (this.obstacleBodies.length + this.bumperBodies.length +
-          this.triangleBodies.length + this.crossBodies.length + this.tsumikiShelves.length) -
+          this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.tsumikiShelves.length) -
           this.tsumikiMovedParts.size);
         const timeBonus = Math.floor(this.timeRemaining / 5);
         this.renderer.drawTsumikiClearScreen(this.width, this.height, this.goalsScored, tsumikiScore, unusedBonus, timeBonus, this.levelManager.hasNext());
@@ -495,6 +512,21 @@ export class Game {
       );
     }
 
+    for (let i = 0; i < this.generatedUShapes.length; i++) {
+      const us = this.generatedUShapes[i]!;
+      const body = this.uShapeBodies[i];
+      const hitTime = body ? this.uShapeHitTimes.get(body.id) : undefined;
+      const hitAge5 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const angle = body ? body.angle : 0;
+      this.renderer.drawUShape(
+        us.x * this.width,
+        us.y * this.height,
+        us.size * this.width,
+        angle,
+        hitAge5,
+      );
+    }
+
     for (const t of level.trampolines) {
       this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
     }
@@ -526,6 +558,8 @@ export class Game {
             angle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "seesaw") {
             angle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "ushape") {
+            angle = this.uShapeBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           this.renderer.drawRotationHandle(pos.x, pos.y, angle);
         }
@@ -574,6 +608,14 @@ export class Game {
             sw.h * this.height,
             body?.angle ?? 0,
           );
+        }
+      }
+      for (let i = 0; i < this.uShapeBodies.length; i++) {
+        if (this.tsumikiSelectedType === "ushape" && this.tsumikiSelectedIndex === i) {
+          const us = this.generatedUShapes[i]!;
+          const s = us.size * this.width * 2;
+          const uBody = this.uShapeBodies[i];
+          this.renderer.drawTsumikiSelection(us.x * this.width, us.y * this.height, s, s, uBody?.angle ?? 0);
         }
       }
 
@@ -725,7 +767,7 @@ export class Game {
       const gapX = 12;
       const gapY = 8;
       const gridTop = modeY + 32;
-      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw"];
+      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape"];
 
       for (let i = 0; i < types.length; i++) {
         const col = i % 2;
@@ -1180,7 +1222,7 @@ export class Game {
     const gridTop = modeY + 32;
     const cardH = 64;
     const gapY = 8;
-    const obstacleTypeCount = 5; // rect, circle, triangle, cross, seesaw
+    const obstacleTypeCount = 6; // rect, circle, triangle, cross, seesaw, ushape
     const gridRows = Math.ceil(obstacleTypeCount / 2);
     const gridBottom = gridTop + gridRows * (cardH + gapY);
     const btnY = gridBottom + 20;
@@ -1226,6 +1268,8 @@ export class Game {
             currentAngle = this.crossBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "seesaw") {
             currentAngle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "ushape") {
+            currentAngle = this.uShapeBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           const handleX = pos.x + Math.cos(currentAngle) * handleDist;
           const handleY = pos.y + Math.sin(currentAngle) * handleDist;
@@ -1549,6 +1593,16 @@ export class Game {
       this.seesawSpeeds.push(0.6 + this.getRandom() * 0.6);
     }
 
+    // U-shapes (pendulum rotating, pivot at bottom center)
+    this.uShapeBodies = [];
+    for (const us of this.generatedUShapes) {
+      const cx = us.x * this.width;
+      const cy = us.y * this.height;
+      const uBody = createUShapeBody(cx, cy, us.size * this.width);
+      Matter.Composite.add(this.engine.world, uBody);
+      this.uShapeBodies.push(uBody);
+    }
+
     // White balls (adjacent to obstacles)
     this.setupWhiteBalls();
   }
@@ -1791,6 +1845,11 @@ export class Game {
     this.seesawHitTimes.clear();
     this.seesawPhases = [];
     this.seesawSpeeds = [];
+    this.generatedUShapes = [];
+    this.uShapeBodies = [];
+    this.uShapeHitTimes.clear();
+    this.uShapeDirections = [];
+    this.uShapePhases = [];
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -1864,6 +1923,7 @@ export class Game {
     this.generatedBumpers = [];
     this.generatedTriangles = [];
     this.generatedSeesaws = [];
+    this.generatedUShapes = [];
 
     const startX = level.start.x;
     const startY = level.start.y;
@@ -1909,6 +1969,11 @@ export class Game {
           const w = 0.15 + this.getRandom() * 0.1;
           const h = 0.025 + this.getRandom() * 0.015;
           this.generatedSeesaws.push({ x: ox, y: oy, w, h });
+        } else if (type === "ushape") {
+          const size = 0.04 + this.getRandom() * 0.025;
+          this.generatedUShapes.push({ x: ox, y: oy, size });
+          this.uShapeDirections.push(this.getRandom() < 0.5 ? 1 : -1);
+          this.uShapePhases.push(this.getRandom() * Math.PI * 2);
         }
       }
     }
@@ -1993,6 +2058,18 @@ export class Game {
           this.seesawHitTimes.set(hitSeesaw.id, performance.now());
           this.sound.bounce();
         }
+
+        // U字型の衝突フィードバック
+        let hitUShape: Matter.Body | null = null;
+        if (bodyA.label === "ushape" && bodyB.label === "marble") {
+          hitUShape = bodyA;
+        } else if (bodyB.label === "ushape" && bodyA.label === "marble") {
+          hitUShape = bodyB;
+        }
+        if (hitUShape) {
+          this.uShapeHitTimes.set(hitUShape.id, performance.now());
+          this.sound.bounce();
+        }
       }
     });
   }
@@ -2038,6 +2115,12 @@ export class Game {
       const sw = this.generatedSeesaws[idx]!;
       whiteX = sw.x * this.width;
       whiteY = (sw.y - sw.h / 2) * this.height - MARBLE_RADIUS - 1;
+      placed = true;
+    } else if (type === "ushape" && this.generatedUShapes.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedUShapes.length);
+      const us = this.generatedUShapes[idx]!;
+      whiteX = us.x * this.width;
+      whiteY = (us.y * this.height) - (us.size * this.width) - MARBLE_RADIUS - 1;
       placed = true;
     }
 
@@ -2173,6 +2256,10 @@ export class Game {
     this.seesawHitTimes.clear();
     this.seesawPhases = [];
     this.seesawSpeeds = [];
+    this.uShapeBodies = [];
+    this.uShapeHitTimes.clear();
+    this.uShapeDirections = [];
+    this.uShapePhases = [];
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
     this.tsumikiSelectedType = null;
@@ -2233,7 +2320,7 @@ export class Game {
   }
 
   /** 積み木モードのパーツヒットテストを行います */
-  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "shelf"; index: number } | null {
+  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "shelf"; index: number } | null {
     // 棚のヒットテスト
     for (let i = 0; i < this.tsumikiShelves.length; i++) {
       const shelf = this.tsumikiShelves[i]!;
@@ -2336,6 +2423,19 @@ export class Game {
       }
     }
 
+    // U字型のヒットテスト（外接円 + マージン）
+    for (let i = 0; i < this.uShapeBodies.length; i++) {
+      const us = this.generatedUShapes[i]!;
+      const ux = us.x * this.width;
+      const uy = us.y * this.height;
+      const dx = px - ux;
+      const dy = py - uy;
+      const r = us.size * this.width * 1.2 + 6;
+      if (dx * dx + dy * dy < r * r) {
+        return { type: "ushape", index: i };
+      }
+    }
+
     return null;
   }
 
@@ -2364,6 +2464,10 @@ export class Game {
     if (type === "seesaw") {
       const body = this.seesawBodies[index];
       return body ? { x: body.position.x, y: body.position.y } : null;
+    }
+    if (type === "ushape") {
+      const us = this.generatedUShapes[index];
+      return us ? { x: us.x * this.width, y: us.y * this.height } : null;
     }
     return null;
   }
@@ -2436,6 +2540,16 @@ export class Game {
           sw.y = clampedY / this.height;
         }
       }
+    } else if (type === "ushape") {
+      const body = this.uShapeBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        const us = this.generatedUShapes[index];
+        if (us) {
+          us.x = clampedX / this.width;
+          us.y = clampedY / this.height;
+        }
+      }
     }
   }
 
@@ -2468,6 +2582,11 @@ export class Game {
       if (body) {
         Matter.Body.setAngle(body, angle);
       }
+    } else if (type === "ushape") {
+      const body = this.uShapeBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
     }
     this.tsumikiMovedParts.add(`${type}:${index}`);
   }
@@ -2478,7 +2597,7 @@ export class Game {
 
     // 未移動パーツボーナス
     const totalParts = this.obstacleBodies.length + this.bumperBodies.length +
-      this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.tsumikiShelves.length;
+      this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.tsumikiShelves.length;
     const movedCount = this.tsumikiMovedParts.size;
     const unusedBonus = Math.max(0, totalParts - movedCount);
     score += unusedBonus;
