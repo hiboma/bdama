@@ -71,6 +71,8 @@
     .icon-cross { color: #F39C12; font-size: 32px; font-weight: bold; }
     .icon-seesaw { width: 36px; height: 8px; border-radius: 3px; background: linear-gradient(90deg, #5B3A8C, #8E6BBE 50%, #5B3A8C); transform: rotate(-8deg); }
     .icon-ushape { width: 24px; height: 24px; border: 4px solid #9C27B0; border-top-color: transparent; border-radius: 50%; }
+    .icon-belt { width: 36px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #3E5426, #5D7B3A 50%, #3E5426); position: relative; }
+    .icon-belt::after { content: "→"; position: absolute; right: 2px; top: -5px; font-size: 10px; color: rgba(255,255,255,0.6); }
     .back {
       display: block;
       text-align: center;
@@ -110,6 +112,10 @@
       <a class="card" href="/bdama/debug/ushape.html">
         <div class="icon"><div class="icon-ushape"></div></div>
         <span class="label">ユーがた</span>
+      </a>
+      <a class="card" href="/bdama/debug/belt.html">
+        <div class="icon"><div class="icon-belt"></div></div>
+        <span class="label">コンベア</span>
       </a>
     </div>
     <a class="back" href="/bdama/">← ゲームに戻る</a>
