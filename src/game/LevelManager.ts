@@ -36,6 +36,13 @@ export interface UShapeData {
   size: number;
 }
 
+export interface BeltData {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface LevelData {
   level: number;
   start: { x: number; y: number };

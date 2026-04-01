@@ -141,6 +141,33 @@ export function createSeesawBody(cx: number, cy: number, w: number, h: number): 
   });
 }
 
+/** ベルトコンベア（belt）の速度パラメータ */
+export const BELT_SPEED = {
+  /** コンベアがビー玉に加える水平方向の力（mass に乗算されます） */
+  force: 0.0005,
+};
+
+/** ベルトコンベア（belt）のボディを作成します */
+export function createBeltBody(cx: number, cy: number, w: number, h: number): Matter.Body {
+  return Matter.Bodies.rectangle(cx, cy, w, h, {
+    isStatic: true,
+    restitution: 0,
+    friction: 1.0,
+    label: "belt",
+    render: { visible: false },
+    chamfer: { radius: 2 },
+  });
+}
+
+/** ベルトコンベアの搬送方向に沿った力をビー玉に加えます（回転対応） */
+export function applyBeltForce(marble: Matter.Body, direction: number, angle = 0): void {
+  const f = BELT_SPEED.force * direction * marble.mass;
+  Matter.Body.applyForce(marble, marble.position, {
+    x: f * Math.cos(angle),
+    y: f * Math.sin(angle),
+  });
+}
+
 /** C字型（ushape）の円弧パラメータ */
 export const USHAPE_ARC = {
   /** 開口部の半角（上向き開口、ラジアン） */
