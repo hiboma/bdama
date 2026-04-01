@@ -159,11 +159,12 @@ export function createBeltBody(cx: number, cy: number, w: number, h: number): Ma
   });
 }
 
-/** ベルトコンベア上のビー玉に水平方向の力を加えます */
-export function applyBeltForce(marble: Matter.Body, direction: number): void {
+/** ベルトコンベアの搬送方向に沿った力をビー玉に加えます（回転対応） */
+export function applyBeltForce(marble: Matter.Body, direction: number, angle = 0): void {
+  const f = BELT_SPEED.force * direction * marble.mass;
   Matter.Body.applyForce(marble, marble.position, {
-    x: BELT_SPEED.force * direction * marble.mass,
-    y: 0,
+    x: f * Math.cos(angle),
+    y: f * Math.sin(angle),
   });
 }
 
