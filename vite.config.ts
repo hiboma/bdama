@@ -19,6 +19,7 @@ export default defineConfig({
         "debug-cross": resolve(__dirname, "debug/cross.html"),
         "debug-seesaw": resolve(__dirname, "debug/seesaw.html"),
         "debug-ushape": resolve(__dirname, "debug/ushape.html"),
+        "debug-belt": resolve(__dirname, "debug/belt.html"),
       },
     },
   },
