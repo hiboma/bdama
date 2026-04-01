@@ -2,7 +2,7 @@ import Matter from "matter-js";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { LevelManager } from "./LevelManager";
-import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData, UShapeData } from "./LevelManager";
+import type { ObstacleData, BumperData, TriangleData, CrossData, SeesawData, UShapeData, BeltData } from "./LevelManager";
 import type { Shelf } from "../entities/Shelf";
 import { Sound } from "./Sound";
 import {
@@ -12,16 +12,18 @@ import {
   createCrossBody,
   createSeesawBody,
   createUShapeBody,
+  createBeltBody,
   rotateCross,
   swaySeesaw,
   rotateUShape,
   getUShapeDrawPosition,
+  applyBeltForce,
   calcMarbleRadius,
 } from "./ObstacleFactory";
 
 export type GameState = "title" | "playing" | "drawing" | "rolling" | "clear" | "fail";
 export type GameMode = "drawing" | "tsumiki";
-export type ObstacleType = "rect" | "circle" | "triangle" | "cross" | "seesaw" | "ushape";
+export type ObstacleType = "rect" | "circle" | "triangle" | "cross" | "seesaw" | "ushape" | "belt";
 
 export interface GoalEffect {
   x: number;
@@ -125,6 +127,10 @@ export class Game {
   private uShapeBodies: Matter.Body[] = [];
   private uShapeHitTimes: Map<number, number> = new Map();
   private uShapeDirections: number[] = [];
+  private generatedBelts: BeltData[] = [];
+  private beltBodies: Matter.Body[] = [];
+  private beltHitTimes: Map<number, number> = new Map();
+  private beltDirections: number[] = [];
   private obstaclePivots: ("center" | "left" | "right")[] = [];
   private obstacleBasePositions: { x: number; y: number }[] = [];
   private obstaclePhases: number[] = [];
@@ -148,7 +154,7 @@ export class Game {
   // 積み木モード用プロパティ
   private tsumikiShelves: { x: number; y: number; length: number; angle: number; body: Matter.Body | null; moved: boolean }[] = [];
   private tsumikiSelectedIndex = -1; // 選択中のパーツのインデックス（-1:なし, 0〜:障害物, 1000〜:棚）
-  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "shelf" | null = null;
+  private tsumikiSelectedType: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "belt" | "shelf" | null = null;
   private tsumikiRotating = false;
   private tsumikiRotateCenter: { x: number; y: number } | null = null;
   private tsumikiDragging = false;
@@ -357,6 +363,28 @@ export class Game {
         const us = this.generatedUShapes[i]!;
         rotateUShape(this.uShapeBodies[i]!, this.uShapeDirections[i] ?? 1, us.x * this.width, us.y * this.height, us.size * this.width);
       }
+      // ベルトコンベア上のビー玉に力を加えます（ローカル座標で接触判定、回転考慮）
+      for (let i = 0; i < this.beltBodies.length; i++) {
+        const beltBody = this.beltBodies[i];
+        if (!beltBody) continue;
+        const belt = this.generatedBelts[i];
+        if (!belt) continue;
+        const hw = (belt.w * this.width) / 2;
+        const hh = (belt.h * this.height) / 2;
+        const angle = beltBody.angle;
+        const cosA = Math.cos(-angle);
+        const sinA = Math.sin(-angle);
+        for (const marble of this.marbles) {
+          const dx = marble.position.x - beltBody.position.x;
+          const dy = marble.position.y - beltBody.position.y;
+          const localX = dx * cosA - dy * sinA;
+          const localY = dx * sinA + dy * cosA;
+          // ビー玉の中心がコンベアの横幅内、かつ上面付近にあるとき
+          if (Math.abs(localX) < hw && localY >= -hh - this.marbleRadius - 1 && localY <= -hh + 2) {
+            applyBeltForce(marble, this.beltDirections[i] ?? 1, angle);
+          }
+        }
+      }
     }
 
     // Update goal effects
@@ -398,7 +426,7 @@ export class Game {
         const tsumikiScore = this.calculateTsumikiScore();
         const unusedBonus = Math.max(0,
           (this.obstacleBodies.length + this.bumperBodies.length +
-          this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.tsumikiShelves.length) -
+          this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.beltBodies.length + this.tsumikiShelves.length) -
           this.tsumikiMovedParts.size);
         const timeBonus = Math.floor(this.timeRemaining / 5);
         this.renderer.drawTsumikiClearScreen(this.width, this.height, this.goalsScored, tsumikiScore, unusedBonus, timeBonus, this.levelManager.hasNext());
@@ -521,6 +549,26 @@ export class Game {
       this.renderer.drawUShape(pos.x, pos.y, radius, angle, hitAge5);
     }
 
+    for (let i = 0; i < this.generatedBelts.length; i++) {
+      const belt = this.generatedBelts[i]!;
+      const body = this.beltBodies[i];
+      const hitTime = body ? this.beltHitTimes.get(body.id) : undefined;
+      const hitAge6 = hitTime !== undefined ? (now - hitTime) / 1000 : -1;
+      const bx = body ? body.position.x : belt.x * this.width;
+      const by = body ? body.position.y : belt.y * this.height;
+      const angle = body ? body.angle : 0;
+      this.renderer.drawBelt(
+        bx,
+        by,
+        belt.w * this.width,
+        belt.h * this.height,
+        angle,
+        this.beltDirections[i] ?? 1,
+        this.elapsed,
+        hitAge6,
+      );
+    }
+
     for (const t of level.trampolines) {
       this.renderer.drawTrampoline(t.x * this.width, t.y * this.height);
     }
@@ -554,6 +602,8 @@ export class Game {
             angle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "ushape") {
             angle = this.uShapeBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "belt") {
+            angle = this.beltBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           this.renderer.drawRotationHandle(pos.x, pos.y, angle);
         }
@@ -610,6 +660,19 @@ export class Game {
           const s = us.size * this.width * 2;
           const uBody = this.uShapeBodies[i];
           this.renderer.drawTsumikiSelection(us.x * this.width, us.y * this.height, s, s, uBody?.angle ?? 0);
+        }
+      }
+      for (let i = 0; i < this.beltBodies.length; i++) {
+        if (this.tsumikiSelectedType === "belt" && this.tsumikiSelectedIndex === i) {
+          const belt = this.generatedBelts[i]!;
+          const body = this.beltBodies[i];
+          this.renderer.drawTsumikiSelection(
+            body ? body.position.x : belt.x * this.width,
+            body ? body.position.y : belt.y * this.height,
+            belt.w * this.width,
+            belt.h * this.height,
+            body?.angle ?? 0,
+          );
         }
       }
 
@@ -761,7 +824,7 @@ export class Game {
       const gapX = 12;
       const gapY = 8;
       const gridTop = modeY + 32;
-      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape"];
+      const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape", "belt"];
 
       for (let i = 0; i < types.length; i++) {
         const col = i % 2;
@@ -1216,7 +1279,7 @@ export class Game {
     const gridTop = modeY + 32;
     const cardH = 64;
     const gapY = 8;
-    const obstacleTypeCount = 6; // rect, circle, triangle, cross, seesaw, ushape
+    const obstacleTypeCount = 7; // rect, circle, triangle, cross, seesaw, ushape, belt
     const gridRows = Math.ceil(obstacleTypeCount / 2);
     const gridBottom = gridTop + gridRows * (cardH + gapY);
     const btnY = gridBottom + 20;
@@ -1264,6 +1327,8 @@ export class Game {
             currentAngle = this.seesawBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           } else if (this.tsumikiSelectedType === "ushape") {
             currentAngle = this.uShapeBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
+          } else if (this.tsumikiSelectedType === "belt") {
+            currentAngle = this.beltBodies[this.tsumikiSelectedIndex]?.angle ?? 0;
           }
           const handleX = pos.x + Math.cos(currentAngle) * handleDist;
           const handleY = pos.y + Math.sin(currentAngle) * handleDist;
@@ -1532,6 +1597,16 @@ export class Game {
       this.uShapeBodies.push(uBody);
     }
 
+    // Belts (conveyor belt that pushes marbles horizontally)
+    this.beltBodies = [];
+    for (const belt of this.generatedBelts) {
+      const cx = belt.x * this.width;
+      const cy = belt.y * this.height;
+      const beltBody = createBeltBody(cx, cy, belt.w * this.width, belt.h * this.height);
+      Matter.Composite.add(this.engine.world, beltBody);
+      this.beltBodies.push(beltBody);
+    }
+
     // White balls (adjacent to obstacles)
     this.setupWhiteBalls();
   }
@@ -1778,6 +1853,10 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
+    this.generatedBelts = [];
+    this.beltBodies = [];
+    this.beltHitTimes.clear();
+    this.beltDirections = [];
 
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
@@ -1853,6 +1932,7 @@ export class Game {
     this.generatedTriangles = [];
     this.generatedSeesaws = [];
     this.generatedUShapes = [];
+    this.generatedBelts = [];
 
     const startX = level.start.x;
     const startY = level.start.y;
@@ -1902,6 +1982,11 @@ export class Game {
           const size = 0.04 + this.getRandom() * 0.025;
           this.generatedUShapes.push({ x: ox, y: oy, size });
           this.uShapeDirections.push(this.getRandom() < 0.5 ? 1 : -1);
+        } else if (type === "belt") {
+          const w = 0.15 + this.getRandom() * 0.1;
+          const h = 0.025 + this.getRandom() * 0.015;
+          this.generatedBelts.push({ x: ox, y: oy, w, h });
+          this.beltDirections.push(this.getRandom() < 0.5 ? 1 : -1);
         }
       }
     }
@@ -1998,8 +2083,24 @@ export class Game {
           this.uShapeHitTimes.set(hitUShape.id, performance.now());
           this.sound.bounce();
         }
+
+        // ベルトコンベアの衝突フィードバック
+        let hitBelt: Matter.Body | null = null;
+        let beltMarble2: Matter.Body | null = null;
+        if (bodyA.label === "belt" && bodyB.label === "marble") {
+          hitBelt = bodyA;
+          beltMarble2 = bodyB;
+        } else if (bodyB.label === "belt" && bodyA.label === "marble") {
+          hitBelt = bodyB;
+          beltMarble2 = bodyA;
+        }
+        if (hitBelt && beltMarble2) {
+          this.beltHitTimes.set(hitBelt.id, performance.now());
+          this.sound.bounce();
+        }
       }
     });
+
   }
 
   private setupWhiteBalls(): void {
@@ -2049,6 +2150,12 @@ export class Game {
       const us = this.generatedUShapes[idx]!;
       whiteX = us.x * this.width;
       whiteY = (us.y * this.height) - (us.size * this.width) - this.marbleRadius - 1;
+      placed = true;
+    } else if (type === "belt" && this.generatedBelts.length > 0) {
+      const idx = Math.floor(this.getRandom() * this.generatedBelts.length);
+      const belt = this.generatedBelts[idx]!;
+      whiteX = belt.x * this.width;
+      whiteY = (belt.y - belt.h / 2) * this.height - this.marbleRadius - 1;
       placed = true;
     }
 
@@ -2187,6 +2294,9 @@ export class Game {
     this.uShapeBodies = [];
     this.uShapeHitTimes.clear();
     this.uShapeDirections = [];
+    this.beltBodies = [];
+    this.beltHitTimes.clear();
+    this.beltDirections = [];
 
     this.tsumikiShelves = [];
     this.tsumikiSelectedIndex = -1;
@@ -2248,7 +2358,7 @@ export class Game {
   }
 
   /** 積み木モードのパーツヒットテストを行います */
-  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "shelf"; index: number } | null {
+  private tsumikiHitTest(px: number, py: number): { type: "obstacle" | "bumper" | "triangle" | "cross" | "seesaw" | "ushape" | "belt" | "shelf"; index: number } | null {
     // 棚のヒットテスト
     for (let i = 0; i < this.tsumikiShelves.length; i++) {
       const shelf = this.tsumikiShelves[i]!;
@@ -2364,6 +2474,23 @@ export class Game {
       }
     }
 
+    // ベルトコンベアのヒットテスト（回転考慮）
+    for (let i = 0; i < this.beltBodies.length; i++) {
+      const body = this.beltBodies[i]!;
+      const belt = this.generatedBelts[i]!;
+      const dx = px - body.position.x;
+      const dy = py - body.position.y;
+      const cos = Math.cos(-body.angle);
+      const sin = Math.sin(-body.angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      const hw = (belt.w * this.width) / 2 + 8;
+      const hh = (belt.h * this.height) / 2 + 8;
+      if (Math.abs(localX) < hw && Math.abs(localY) < hh) {
+        return { type: "belt", index: i };
+      }
+    }
+
     return null;
   }
 
@@ -2396,6 +2523,10 @@ export class Game {
     if (type === "ushape") {
       const us = this.generatedUShapes[index];
       return us ? { x: us.x * this.width, y: us.y * this.height } : null;
+    }
+    if (type === "belt") {
+      const body = this.beltBodies[index];
+      return body ? { x: body.position.x, y: body.position.y } : null;
     }
     return null;
   }
@@ -2478,6 +2609,16 @@ export class Game {
           us.y = clampedY / this.height;
         }
       }
+    } else if (type === "belt") {
+      const body = this.beltBodies[index];
+      if (body) {
+        Matter.Body.setPosition(body, { x: clampedX, y: clampedY });
+        const belt = this.generatedBelts[index];
+        if (belt) {
+          belt.x = clampedX / this.width;
+          belt.y = clampedY / this.height;
+        }
+      }
     }
   }
 
@@ -2515,6 +2656,11 @@ export class Game {
       if (body) {
         Matter.Body.setAngle(body, angle);
       }
+    } else if (type === "belt") {
+      const body = this.beltBodies[index];
+      if (body) {
+        Matter.Body.setAngle(body, angle);
+      }
     }
     this.tsumikiMovedParts.add(`${type}:${index}`);
   }
@@ -2525,7 +2671,7 @@ export class Game {
 
     // 未移動パーツボーナス
     const totalParts = this.obstacleBodies.length + this.bumperBodies.length +
-      this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.tsumikiShelves.length;
+      this.triangleBodies.length + this.crossBodies.length + this.seesawBodies.length + this.uShapeBodies.length + this.beltBodies.length + this.tsumikiShelves.length;
     const movedCount = this.tsumikiMovedParts.size;
     const unusedBonus = Math.max(0, totalParts - movedCount);
     score += unusedBonus;
