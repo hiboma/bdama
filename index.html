@@ -240,6 +240,35 @@
       box-sizing: border-box;
     }
 
+    /* コンベア */
+    .icon-belt {
+      position: relative;
+      width: 36px;
+      height: 16px;
+      background: linear-gradient(90deg, #607D8B, #90A4AE);
+      border-radius: 8px;
+    }
+    .icon-belt::before {
+      content: '→';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 14px;
+      color: #fff;
+      line-height: 1;
+    }
+    .icon-belt::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      border-radius: 10px;
+      border: 2px solid #455A64;
+    }
+
     /* あそぶボタン */
     .play-btn {
       padding: 14px 64px;
@@ -394,6 +423,10 @@
       <div class="obstacle-card" data-type="ushape">
         <div class="icon"><div class="icon-ushape"></div></div>
         <span>ユーがた</span>
+      </div>
+      <div class="obstacle-card" data-type="belt">
+        <div class="icon"><div class="icon-belt"></div></div>
+        <span>コンベア</span>
       </div>
     </div>
 
