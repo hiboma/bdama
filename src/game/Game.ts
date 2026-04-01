@@ -363,18 +363,25 @@ export class Game {
         const us = this.generatedUShapes[i]!;
         rotateUShape(this.uShapeBodies[i]!, this.uShapeDirections[i] ?? 1, us.x * this.width, us.y * this.height, us.size * this.width);
       }
-      // ベルトコンベア上のビー玉に力を加えます（上面接触判定）
+      // ベルトコンベア上のビー玉に力を加えます（ローカル座標で接触判定、回転考慮）
       for (let i = 0; i < this.beltBodies.length; i++) {
         const beltBody = this.beltBodies[i];
         if (!beltBody) continue;
-        const bb = beltBody.bounds;
+        const belt = this.generatedBelts[i];
+        if (!belt) continue;
+        const hw = (belt.w * this.width) / 2;
+        const hh = (belt.h * this.height) / 2;
+        const angle = beltBody.angle;
+        const cosA = Math.cos(-angle);
+        const sinA = Math.sin(-angle);
         for (const marble of this.marbles) {
-          const mx = marble.position.x;
-          const my = marble.position.y;
+          const dx = marble.position.x - beltBody.position.x;
+          const dy = marble.position.y - beltBody.position.y;
+          const localX = dx * cosA - dy * sinA;
+          const localY = dx * sinA + dy * cosA;
           // ビー玉の中心がコンベアの横幅内、かつ上面付近にあるとき
-          if (mx > bb.min.x && mx < bb.max.x &&
-              my >= bb.min.y - this.marbleRadius - 1 && my <= bb.min.y + 2) {
-            applyBeltForce(marble, this.beltDirections[i] ?? 1);
+          if (Math.abs(localX) < hw && localY >= -hh - this.marbleRadius - 1 && localY <= -hh + 2) {
+            applyBeltForce(marble, this.beltDirections[i] ?? 1, angle);
           }
         }
       }
@@ -1925,6 +1932,7 @@ export class Game {
     this.generatedTriangles = [];
     this.generatedSeesaws = [];
     this.generatedUShapes = [];
+    this.generatedBelts = [];
 
     const startX = level.start.x;
     const startY = level.start.y;

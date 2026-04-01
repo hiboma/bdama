@@ -1097,6 +1097,7 @@ export class Renderer {
     // Rollers at each end (drawn in world space)
     ctx.save();
     ctx.translate(x, y);
+    ctx.rotate(angle);
     const rollerR = Math.max(4, h * 0.6);
     for (const side of [-1, 1]) {
       const rx = (side * w) / 2;
