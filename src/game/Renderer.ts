@@ -105,8 +105,8 @@ export class Renderer {
     const gapX = 12;
     const gapY = 8;
     const gridTop = modeY + 32;
-    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape"];
-    const labels = ["しかく", "まる", "さんかく", "くるくる", "シーソー", "ユーがた"];
+    const types: ObstacleType[] = ["rect", "circle", "triangle", "cross", "seesaw", "ushape", "belt"];
+    const labels = ["しかく", "まる", "さんかく", "くるくる", "シーソー", "ユーがた", "コンベア"];
 
     for (let i = 0; i < types.length; i++) {
       const col = i % 2;
@@ -1030,6 +1030,87 @@ export class Renderer {
     ctx.restore();
   }
 
+  drawBelt(x: number, y: number, w: number, h: number, angle: number, direction: number, elapsed: number, hitAge = -1): void {
+    const ctx = this.ctx;
+    const HIT_DURATION = 0.3;
+    const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Shadow
+    ctx.beginPath();
+    ctx.roundRect(-w / 2 + 2, -h / 2 + 2, w, h, 4);
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fill();
+
+    // Belt body
+    const topColor = isHit ? COLORS.goldLight : "#5D7B3A";
+    const bottomColor = isHit ? COLORS.gold : "#3E5426";
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 4);
+    const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    grad.addColorStop(0, topColor);
+    grad.addColorStop(1, bottomColor);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = "#2E3D1A";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Animated stripes (conveyor movement)
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 4);
+    ctx.clip();
+
+    const stripeW = 8;
+    const stripeGap = 12;
+    const totalStep = stripeW + stripeGap;
+    const offset = ((elapsed * 60 * direction) % totalStep + totalStep) % totalStep;
+    ctx.fillStyle = isHit ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)";
+    for (let sx = -w / 2 - totalStep + offset; sx < w / 2 + totalStep; sx += totalStep) {
+      ctx.fillRect(sx, -h / 2, stripeW, h);
+    }
+    ctx.restore();
+
+    // Direction arrow
+    const arrowY = 0;
+    const arrowSize = Math.min(h * 0.4, 6);
+    ctx.fillStyle = isHit ? COLORS.white : "rgba(255,255,255,0.5)";
+    ctx.beginPath();
+    if (direction > 0) {
+      ctx.moveTo(w / 2 - arrowSize * 3, arrowY - arrowSize);
+      ctx.lineTo(w / 2 - arrowSize, arrowY);
+      ctx.lineTo(w / 2 - arrowSize * 3, arrowY + arrowSize);
+    } else {
+      ctx.moveTo(-w / 2 + arrowSize * 3, arrowY - arrowSize);
+      ctx.lineTo(-w / 2 + arrowSize, arrowY);
+      ctx.lineTo(-w / 2 + arrowSize * 3, arrowY + arrowSize);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    // Rollers at each end (drawn in world space)
+    ctx.save();
+    ctx.translate(x, y);
+    const rollerR = Math.max(4, h * 0.6);
+    for (const side of [-1, 1]) {
+      const rx = (side * w) / 2;
+      ctx.beginPath();
+      ctx.arc(rx, 0, rollerR, 0, Math.PI * 2);
+      ctx.fillStyle = isHit ? COLORS.gold : "#4A6B2A";
+      ctx.fill();
+      ctx.strokeStyle = "#2E3D1A";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawTrampoline(x: number, y: number): void {
     const ctx = this.ctx;
 
@@ -1846,6 +1927,63 @@ export class Renderer {
       ctx.strokeStyle = "#9C27B0";
       ctx.lineCap = "round";
       ctx.stroke();
+
+      ctx.restore();
+    } else if (type === "belt") {
+      const bw = 50;
+      const bh = 10;
+
+      ctx.save();
+      ctx.translate(x, previewY);
+
+      // Belt body
+      const grad = ctx.createLinearGradient(0, -bh / 2, 0, bh / 2);
+      grad.addColorStop(0, "#5D7B3A");
+      grad.addColorStop(1, "#3E5426");
+      ctx.beginPath();
+      ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 3);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = "#2E3D1A";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Animated stripes
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(-bw / 2, -bh / 2, bw, bh, 3);
+      ctx.clip();
+      const stripeW = 5;
+      const stripeGap = 7;
+      const totalStep = stripeW + stripeGap;
+      const offset = ((this.t * 60) % totalStep + totalStep) % totalStep;
+      ctx.fillStyle = "rgba(255,255,255,0.15)";
+      for (let sx = -bw / 2 - totalStep + offset; sx < bw / 2 + totalStep; sx += totalStep) {
+        ctx.fillRect(sx, -bh / 2, stripeW, bh);
+      }
+      ctx.restore();
+
+      // Direction arrow
+      const arrowSize = 4;
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.beginPath();
+      ctx.moveTo(bw / 2 - arrowSize * 3, -arrowSize);
+      ctx.lineTo(bw / 2 - arrowSize, 0);
+      ctx.lineTo(bw / 2 - arrowSize * 3, arrowSize);
+      ctx.closePath();
+      ctx.fill();
+
+      // Rollers
+      const rollerR = 5;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc((side * bw) / 2, 0, rollerR, 0, Math.PI * 2);
+        ctx.fillStyle = "#4A6B2A";
+        ctx.fill();
+        ctx.strokeStyle = "#2E3D1A";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
 
       ctx.restore();
     }
