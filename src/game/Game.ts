@@ -18,6 +18,7 @@ import {
   rotateUShape,
   getUShapeDrawPosition,
   applyBeltForce,
+  applyBeltSlopeGravity,
   calcMarbleRadius,
 } from "./ObstacleFactory";
 
@@ -382,6 +383,11 @@ export class Game {
           // ビー玉の中心がコンベアの横幅内、かつ上面付近にあるとき
           if (Math.abs(localX) < hw && localY >= -hh - this.marbleRadius - 1 && localY <= -hh + 2) {
             applyBeltForce(marble, this.beltDirections[i] ?? 1, angle);
+            // 傾斜がある場合、斜面に沿った重力成分を加えます
+            if (angle !== 0) {
+              const g = this.engine.gravity.y * this.engine.gravity.scale;
+              applyBeltSlopeGravity(marble, angle, g);
+            }
           }
         }
       }
@@ -1603,6 +1609,9 @@ export class Game {
       const cx = belt.x * this.width;
       const cy = belt.y * this.height;
       const beltBody = createBeltBody(cx, cy, belt.w * this.width, belt.h * this.height);
+      if (belt.angle) {
+        Matter.Body.setAngle(beltBody, belt.angle);
+      }
       Matter.Composite.add(this.engine.world, beltBody);
       this.beltBodies.push(beltBody);
     }
@@ -1985,7 +1994,14 @@ export class Game {
         } else if (type === "belt") {
           const w = 0.15 + this.getRandom() * 0.1;
           const h = 0.025 + this.getRandom() * 0.015;
-          this.generatedBelts.push({ x: ox, y: oy, w, h });
+          // ランダムに ±30度 の傾斜を付けます（一部は水平のまま）
+          const tiltRoll = this.getRandom();
+          let angle = 0;
+          if (tiltRoll < 0.5) {
+            // 50% の確率で傾斜あり: -30度 〜 +30度
+            angle = ((this.getRandom() * 2 - 1) * Math.PI) / 6;
+          }
+          this.generatedBelts.push({ x: ox, y: oy, w, h, angle });
           this.beltDirections.push(this.getRandom() < 0.5 ? 1 : -1);
         }
       }
@@ -2154,8 +2170,11 @@ export class Game {
     } else if (type === "belt" && this.generatedBelts.length > 0) {
       const idx = Math.floor(this.getRandom() * this.generatedBelts.length);
       const belt = this.generatedBelts[idx]!;
-      whiteX = belt.x * this.width;
-      whiteY = (belt.y - belt.h / 2) * this.height - this.marbleRadius - 1;
+      const beltAngle = belt.angle ?? 0;
+      const hh = (belt.h * this.height) / 2;
+      // 傾斜を考慮してベルト上面中央に配置します
+      whiteX = belt.x * this.width + Math.sin(beltAngle) * (hh + this.marbleRadius + 1);
+      whiteY = belt.y * this.height - Math.cos(beltAngle) * (hh + this.marbleRadius + 1);
       placed = true;
     }
 
