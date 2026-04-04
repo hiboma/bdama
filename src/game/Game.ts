@@ -2172,9 +2172,10 @@ export class Game {
       const belt = this.generatedBelts[idx]!;
       const beltAngle = belt.angle ?? 0;
       const hh = (belt.h * this.height) / 2;
-      // 傾斜を考慮してベルト上面中央に配置します
-      whiteX = belt.x * this.width + Math.sin(beltAngle) * (hh + this.marbleRadius + 1);
-      whiteY = belt.y * this.height - Math.cos(beltAngle) * (hh + this.marbleRadius + 1);
+      // 傾斜を考慮してベルト上面の法線方向に配置します
+      const offset = hh + this.marbleRadius + 1;
+      whiteX = belt.x * this.width - Math.sin(beltAngle) * offset;
+      whiteY = belt.y * this.height - Math.cos(beltAngle) * offset;
       placed = true;
     }
 
@@ -2679,6 +2680,10 @@ export class Game {
       const body = this.beltBodies[index];
       if (body) {
         Matter.Body.setAngle(body, angle);
+      }
+      const belt = this.generatedBelts[index];
+      if (belt) {
+        belt.angle = angle;
       }
     }
     this.tsumikiMovedParts.add(`${type}:${index}`);
