@@ -1034,6 +1034,8 @@ export class Renderer {
     const ctx = this.ctx;
     const HIT_DURATION = 0.3;
     const isHit = hitAge >= 0 && hitAge < HIT_DURATION;
+    // 搬送方向が上向きかどうかを判定します
+    const isUplift = direction * Math.sin(angle) < 0;
 
     ctx.save();
     ctx.translate(x, y);
@@ -1045,9 +1047,9 @@ export class Renderer {
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fill();
 
-    // Belt body
-    const topColor = isHit ? COLORS.goldLight : "#5D7B3A";
-    const bottomColor = isHit ? COLORS.gold : "#3E5426";
+    // Belt body — 上向き搬送時はオレンジ系で高回転を表現します
+    const topColor = isHit ? COLORS.goldLight : isUplift ? "#8B6914" : "#5D7B3A";
+    const bottomColor = isHit ? COLORS.gold : isUplift ? "#6B4F0E" : "#3E5426";
     ctx.beginPath();
     ctx.roundRect(-w / 2, -h / 2, w, h, 4);
     const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
@@ -1055,7 +1057,7 @@ export class Renderer {
     grad.addColorStop(1, bottomColor);
     ctx.fillStyle = grad;
     ctx.fill();
-    ctx.strokeStyle = "#2E3D1A";
+    ctx.strokeStyle = isUplift ? "#4A3508" : "#2E3D1A";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -1068,8 +1070,10 @@ export class Renderer {
     const stripeW = 8;
     const stripeGap = 12;
     const totalStep = stripeW + stripeGap;
-    const offset = ((elapsed * 60 * direction) % totalStep + totalStep) % totalStep;
-    ctx.fillStyle = isHit ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.15)";
+    // 上向き搬送時はストライプの速度を上げて高回転を表現します
+    const speed = isUplift ? 180 : 60;
+    const offset = ((elapsed * speed * direction) % totalStep + totalStep) % totalStep;
+    ctx.fillStyle = isHit ? "rgba(255,255,255,0.4)" : isUplift ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.15)";
     for (let sx = -w / 2 - totalStep + offset; sx < w / 2 + totalStep; sx += totalStep) {
       ctx.fillRect(sx, -h / 2, stripeW, h);
     }
@@ -1103,9 +1107,9 @@ export class Renderer {
       const rx = (side * w) / 2;
       ctx.beginPath();
       ctx.arc(rx, 0, rollerR, 0, Math.PI * 2);
-      ctx.fillStyle = isHit ? COLORS.gold : "#4A6B2A";
+      ctx.fillStyle = isHit ? COLORS.gold : isUplift ? "#7A5A10" : "#4A6B2A";
       ctx.fill();
-      ctx.strokeStyle = "#2E3D1A";
+      ctx.strokeStyle = isUplift ? "#4A3508" : "#2E3D1A";
       ctx.lineWidth = 1;
       ctx.stroke();
     }

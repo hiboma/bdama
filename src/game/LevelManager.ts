@@ -41,6 +41,7 @@ export interface BeltData {
   y: number;
   w: number;
   h: number;
+  angle?: number;
 }
 
 export interface LevelData {
