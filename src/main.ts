@@ -43,13 +43,8 @@ function syncSettingsUI(): void {
 syncSettingsUI();
 
 function updatePlayBtn(): void {
-  if (selectedObstacles.size > 0) {
-    playBtn.classList.remove("disabled");
-    playBtn.classList.add("enabled");
-  } else {
-    playBtn.classList.remove("enabled");
-    playBtn.classList.add("disabled");
-  }
+  playBtn.classList.remove("disabled");
+  playBtn.classList.add("enabled");
 }
 
 // モード選択
@@ -114,7 +109,6 @@ freeToggle.addEventListener("click", () => {
 
 // あそぶボタン
 playBtn.addEventListener("click", () => {
-  if (selectedObstacles.size === 0) return;
   sound.tap();
 
   // タイトル画面を非表示、Canvas を表示
