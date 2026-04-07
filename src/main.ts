@@ -42,11 +42,6 @@ function syncSettingsUI(): void {
 }
 syncSettingsUI();
 
-function updatePlayBtn(): void {
-  playBtn.classList.remove("disabled");
-  playBtn.classList.add("enabled");
-}
-
 // モード選択
 document.querySelectorAll(".mode-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -72,7 +67,6 @@ document.querySelectorAll(".obstacle-card").forEach((card) => {
       selectedObstacles.add(type);
       card.classList.add("selected");
     }
-    updatePlayBtn();
   });
 });
 
