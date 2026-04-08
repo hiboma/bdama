@@ -42,16 +42,6 @@ function syncSettingsUI(): void {
 }
 syncSettingsUI();
 
-function updatePlayBtn(): void {
-  if (selectedObstacles.size > 0) {
-    playBtn.classList.remove("disabled");
-    playBtn.classList.add("enabled");
-  } else {
-    playBtn.classList.remove("enabled");
-    playBtn.classList.add("disabled");
-  }
-}
-
 // モード選択
 document.querySelectorAll(".mode-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -77,7 +67,6 @@ document.querySelectorAll(".obstacle-card").forEach((card) => {
       selectedObstacles.add(type);
       card.classList.add("selected");
     }
-    updatePlayBtn();
   });
 });
 
@@ -114,7 +103,6 @@ freeToggle.addEventListener("click", () => {
 
 // あそぶボタン
 playBtn.addEventListener("click", () => {
-  if (selectedObstacles.size === 0) return;
   sound.tap();
 
   // タイトル画面を非表示、Canvas を表示

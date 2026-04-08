@@ -858,7 +858,6 @@ export class Game {
       // あそぶボタン
       const btnY = gridBottom + 20;
       if (
-        this.selectedObstacles.size > 0 &&
         Math.abs(x - cx) < 100 &&
         Math.abs(y - btnY) < 27
       ) {

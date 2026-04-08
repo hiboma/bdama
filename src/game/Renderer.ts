@@ -122,11 +122,7 @@ export class Renderer {
 
     // Play button
     const btnY = gridBottom + 20;
-    if (selectedObstacles.size > 0) {
-      this.drawButton(cx, btnY, 200, 50, "あそぶ", COLORS.red, COLORS.white, "play");
-    } else {
-      this.drawButton(cx, btnY, 200, 50, "あそぶ", "#E0E0E0", "#AAAAAA");
-    }
+    this.drawButton(cx, btnY, 200, 50, "あそぶ", COLORS.red, COLORS.white, "play");
 
     // Settings - 背景パネル付き
     if (speedStep !== undefined && restitutionStep !== undefined) {
