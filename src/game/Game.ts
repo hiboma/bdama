@@ -396,8 +396,10 @@ export class Game {
           const dy = marble.position.y - beltBody.position.y;
           const localX = dx * cosA - dy * sinA;
           const localY = dx * sinA + dy * cosA;
-          // ビー玉の中心がコンベアの横幅内、かつ上面付近にあるとき
-          if (Math.abs(localX) < hw && localY >= -hh - this.marbleRadius - 1 && localY <= -hh + 2) {
+          // ビー玉の中心がコンベアの横幅内、かつ上面付近にあるとき。
+          // 透明なたまは半径が大きいため marbleRadii から実際の半径を引きます。
+          const beltMarbleR = this.marbleRadii.get(marble.id) ?? this.marbleRadius;
+          if (Math.abs(localX) < hw && localY >= -hh - beltMarbleR - 1 && localY <= -hh + 2) {
             applyBeltForce(marble, this.beltDirections[i] ?? 1, angle);
             // 傾斜がある場合、斜面に沿った重力成分を加えます
             if (angle !== 0) {
@@ -1053,7 +1055,8 @@ export class Game {
         const dx = x - marble.position.x;
         const dy = y - marble.position.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < this.marbleRadius + 10) {
+        const marbleR = this.marbleRadii.get(marble.id) ?? this.marbleRadius;
+        if (dist < marbleR + 10) {
           const taps = (this.marbleTaps.get(marble.id) ?? 0) + 1;
           this.marbleTaps.set(marble.id, taps);
 
@@ -1068,7 +1071,7 @@ export class Game {
             this.marbles = this.marbles.filter((m) => m !== marble);
             this.marbleColors.delete(marble.id);
             this.marbleTaps.delete(marble.id);
-        this.marbleRadii.delete(marble.id);
+            this.marbleRadii.delete(marble.id);
             this.marbleHits.delete(marble.id);
             this.sound.erase();
             if (this.marbles.length === 0) {
@@ -1779,7 +1782,7 @@ export class Game {
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
-        this.marbleRadii.delete(marble.id);
+      this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
     }
@@ -1802,7 +1805,7 @@ export class Game {
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
-        this.marbleRadii.delete(marble.id);
+      this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
       this.marblesFallen++;
@@ -2240,7 +2243,7 @@ export class Game {
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
-        this.marbleRadii.delete(marble.id);
+      this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
       this.sound.erase();

@@ -297,7 +297,7 @@ export class Renderer {
 
     // 透明なたま (colorIndex >= TRANSPARENT_OFFSET) はレンズ効果で背景を歪ませて描きます。
     if (colorIndex !== undefined && colorIndex >= TRANSPARENT_OFFSET) {
-      this.drawGlassMarble(x, y, r, colorIndex);
+      this.drawGlassMarble(x, y, r, colorIndex, opacity);
       ctx.globalAlpha = prevAlpha;
       return;
     }
@@ -338,7 +338,7 @@ export class Renderer {
   // ガラス玉のレンズ効果を描きます。
   // 玉の真下にある canvas の絵を拡大コピーして円内に描き、屈折で背景が歪んで見えるようにします。
   // そのうえに色味・ハイライト・縁を薄く重ねてガラスの質感を出します。
-  private drawGlassMarble(x: number, y: number, r: number, colorIndex: number): void {
+  private drawGlassMarble(x: number, y: number, r: number, colorIndex: number, opacity = 1): void {
     const ctx = this.ctx;
     const canvas = ctx.canvas;
     const tone = MARBLE_TONES[colorIndex]!;
@@ -351,6 +351,7 @@ export class Renderer {
     const srcY = y - srcSize / 2;
 
     ctx.save();
+    ctx.globalAlpha = opacity;
     // 円形にクリップして玉の内側だけにレンズ効果を適用します。
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -370,9 +371,7 @@ export class Renderer {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    ctx.restore();
-
-    // 縁を少し濃くしてガラスの厚みを表現します。
+    // 縁を少し濃くしてガラスの厚みを表現します。クリップ内で描いて opacity を統一します。
     ctx.beginPath();
     ctx.arc(x, y, r - 0.5, 0, Math.PI * 2);
     ctx.lineWidth = 1.5;
@@ -384,6 +383,8 @@ export class Renderer {
     ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.3, r * 0.2, -0.5, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.fill();
+
+    ctx.restore();
   }
 
   drawRainbowMarble(x: number, y: number, r: number): void {
