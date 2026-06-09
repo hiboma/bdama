@@ -48,10 +48,25 @@ const SPEED_STEPS = [0.2, 0.4, 0.8, 1.2];
 // はずみやすさステップ: 0=ぺたり, 1=すこし, 2=ふつう, 3=すごく
 const RESTITUTION_STEPS = [0.1, 0.3, 0.5, 1.0];
 const MARBLE_RADIUS_DEFAULT = 17;
+// 透明なたまの色インデックスは TRANSPARENT_OFFSET 以降に並びます。
+// 8-14 は 0-6 (赤〜紫) の半透明版で、物理特性は元の色を引き継ぎます。
+const TRANSPARENT_OFFSET = 8;
 const MARBLE_COLORS = [
   "#F44336", "#FF9800", "#FFC107", "#4CAF50", "#2196F3", "#7E57C2", "#E91E63", "#D8D8D8",
+  // 8-14: 透明なたま (赤〜紫の半透明版)
+  "rgba(244,67,54,0.20)", "rgba(255,152,0,0.20)", "rgba(255,193,7,0.20)", "rgba(76,175,80,0.20)",
+  "rgba(33,150,243,0.20)", "rgba(126,87,194,0.20)", "rgba(233,30,99,0.20)",
 ];
 const SHELF_SEGMENT_LENGTH = 20;
+// 透明なたまは通常の 1.5 倍の半径で生成します。
+const TRANSPARENT_RADIUS_SCALE = 1.5;
+// 透明なたまの物理特性: 大きくて軽く、よく弾みます。
+const TRANSPARENT_TRAIT = { restitution: 0.85, density: 0.0005, friction: 0.0005, label: "ガラス" };
+
+// 色インデックスを元の不透明な色 (0-6) に正規化します。
+function baseColorIndex(colorIndex: number): number {
+  return colorIndex >= TRANSPARENT_OFFSET ? colorIndex - TRANSPARENT_OFFSET : colorIndex;
+}
 
 // mulberry32 シード付き疑似乱数生成器
 function createSeededRandom(seed: number): () => number {
@@ -103,6 +118,7 @@ export class Game {
   private goalEffects: GoalEffect[] = [];
   private breakEffects: BreakEffect[] = [];
   private marbleColors: Map<number, number> = new Map();
+  private marbleRadii: Map<number, number> = new Map();
   private marbleTaps: Map<number, number> = new Map();
   private generatedObstacles: ObstacleData[] = [];
   private whiteBalls: Matter.Body[] = [];
@@ -713,10 +729,11 @@ export class Game {
         const colorIndex = this.marbleColors.get(marble.id) ?? 0;
         const taps = this.marbleTaps.get(marble.id) ?? 0;
         const opacity = 1 - taps * 0.2;
+        const radius = this.marbleRadii.get(marble.id) ?? this.marbleRadius;
         this.renderer.drawMarble(
           marble.position.x,
           marble.position.y,
-          this.marbleRadius,
+          radius,
           colorIndex,
           opacity,
         );
@@ -1051,6 +1068,7 @@ export class Game {
             this.marbles = this.marbles.filter((m) => m !== marble);
             this.marbleColors.delete(marble.id);
             this.marbleTaps.delete(marble.id);
+        this.marbleRadii.delete(marble.id);
             this.marbleHits.delete(marble.id);
             this.sound.erase();
             if (this.marbles.length === 0) {
@@ -1501,10 +1519,17 @@ export class Game {
     // Offset slightly if there are already marbles at start
     const offsetX = this.marbles.length * 5;
 
-    const colorIndex = Math.floor(Math.random() * 7);
-    const trait = MARBLE_TRAITS[colorIndex]!;
+    // 赤〜紫の7色から1色を選び、半分の確率で透明なたまにします。
+    const baseIndex = Math.floor(Math.random() * 7);
+    const colorIndex = Math.random() < 0.5 ? baseIndex + TRANSPARENT_OFFSET : baseIndex;
+    const isTransparent = colorIndex >= TRANSPARENT_OFFSET;
+    // 透明なたまは専用特性、不透明なたまは色ごとの特性を使います。
+    const trait = isTransparent ? TRANSPARENT_TRAIT : MARBLE_TRAITS[baseColorIndex(colorIndex)]!;
+    const radius = isTransparent
+      ? Math.round(this.marbleRadius * TRANSPARENT_RADIUS_SCALE)
+      : this.marbleRadius;
 
-    const marble = Matter.Bodies.circle(startX + offsetX, startY, this.marbleRadius, {
+    const marble = Matter.Bodies.circle(startX + offsetX, startY, radius, {
       restitution: trait.restitution * (RESTITUTION_STEPS[this.restitutionStep]! / RESTITUTION_STEPS[2]!),
       friction: trait.friction,
       density: trait.density,
@@ -1514,6 +1539,7 @@ export class Game {
     Matter.Composite.add(this.engine.world, marble);
     this.marbles.push(marble);
     this.marbleColors.set(marble.id, colorIndex);
+    this.marbleRadii.set(marble.id, radius);
     this.marbleTaps.set(marble.id, 0);
     this.marbleHits.set(marble.id, 0);
   }
@@ -1745,12 +1771,15 @@ export class Game {
         });
       }
       this.goalEffects.push({ x: gx, y: gy, score: this.goalsScored, age: 0, particles });
-      this.sound.goal(this.goalsScored);
+      const colorIdx = this.marbleColors.get(marble.id) ?? 0;
+      const octaveShift = colorIdx >= TRANSPARENT_OFFSET ? -1 : 0;
+      this.sound.goal(this.goalsScored, octaveShift);
 
       Matter.Composite.remove(this.engine.world, marble);
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
+        this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
     }
@@ -1773,6 +1802,7 @@ export class Game {
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
+        this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
       this.marblesFallen++;
@@ -1830,6 +1860,7 @@ export class Game {
     this.breakEffects = [];
     this.marbleColors.clear();
     this.marbleTaps.clear();
+    this.marbleRadii.clear();
     this.marbleHits.clear();
     this.whiteBalls = [];
     this.whiteballHitBy.clear();
@@ -2209,6 +2240,7 @@ export class Game {
       this.marbles = this.marbles.filter((m) => m !== marble);
       this.marbleColors.delete(marble.id);
       this.marbleTaps.delete(marble.id);
+        this.marbleRadii.delete(marble.id);
       this.marbleHits.delete(marble.id);
       this.whiteballHitBy.delete(marble.id);
       this.sound.erase();
@@ -2241,6 +2273,7 @@ export class Game {
     this.marbles = [];
     this.marbleColors.clear();
     this.marbleTaps.clear();
+    this.marbleRadii.clear();
     this.marbleHits.clear();
     this.whiteballHitBy.clear();
 
