@@ -15,16 +15,27 @@ const COLORS = {
   white: "#ffffff",
 };
 
+// 透明なたまの色インデックスはこの値以降に並びます (Game.ts の TRANSPARENT_OFFSET と一致させます)。
+const TRANSPARENT_OFFSET = 8;
+
 // Rainbow marble color tones: [highlight, light, mid, dark]
 const MARBLE_TONES: [string, string, string, string][] = [
-  ["#FF8A80", "#F44336", "#D32F2F", "#B71C1C"], // Red
-  ["#FFCC80", "#FF9800", "#EF6C00", "#E65100"], // Orange
-  ["#FFE082", "#FFC107", "#FF8F00", "#E65100"], // Yellow
-  ["#C8E6C9", "#4CAF50", "#2E7D32", "#1B5E20"], // Green
-  ["#90CAF9", "#2196F3", "#1565C0", "#0D47A1"], // Blue
-  ["#B39DDB", "#7E57C2", "#512DA8", "#311B92"], // Indigo
-  ["#F48FB1", "#E91E63", "#C2185B", "#880E4F"], // Violet
-  ["#FFFFFF", "#F0F0F0", "#D8D8D8", "#B0B0B0"], // White
+  ["#FF8A80", "#F44336", "#D32F2F", "#B71C1C"], // 0: Red
+  ["#FFCC80", "#FF9800", "#EF6C00", "#E65100"], // 1: Orange
+  ["#FFE082", "#FFC107", "#FF8F00", "#E65100"], // 2: Yellow
+  ["#C8E6C9", "#4CAF50", "#2E7D32", "#1B5E20"], // 3: Green
+  ["#90CAF9", "#2196F3", "#1565C0", "#0D47A1"], // 4: Blue
+  ["#B39DDB", "#7E57C2", "#512DA8", "#311B92"], // 5: Indigo
+  ["#F48FB1", "#E91E63", "#C2185B", "#880E4F"], // 6: Violet
+  ["#FFFFFF", "#F0F0F0", "#D8D8D8", "#B0B0B0"], // 7: White
+  // 8-14: 透明なたま。各色のアルファを大きく下げてガラスのように透けて見せます。
+  ["rgba(255,138,128,0.25)", "rgba(244,67,54,0.20)", "rgba(211,47,47,0.16)", "rgba(183,28,28,0.12)"],   // 8: Red (透明)
+  ["rgba(255,204,128,0.25)", "rgba(255,152,0,0.20)", "rgba(239,108,0,0.16)", "rgba(230,81,0,0.12)"],    // 9: Orange (透明)
+  ["rgba(255,224,130,0.25)", "rgba(255,193,7,0.20)", "rgba(255,143,0,0.16)", "rgba(230,81,0,0.12)"],    // 10: Yellow (透明)
+  ["rgba(200,230,201,0.25)", "rgba(76,175,80,0.20)", "rgba(46,125,50,0.16)", "rgba(27,94,32,0.12)"],    // 11: Green (透明)
+  ["rgba(144,202,249,0.25)", "rgba(33,150,243,0.20)", "rgba(21,101,192,0.16)", "rgba(13,71,161,0.12)"], // 12: Blue (透明)
+  ["rgba(179,157,219,0.25)", "rgba(126,87,194,0.20)", "rgba(81,45,168,0.16)", "rgba(49,27,146,0.12)"],  // 13: Indigo (透明)
+  ["rgba(244,143,177,0.25)", "rgba(233,30,99,0.20)", "rgba(194,24,91,0.16)", "rgba(136,14,79,0.12)"],   // 14: Violet (透明)
 ];
 
 export class Renderer {
@@ -47,24 +58,28 @@ export class Renderer {
     if (gameMode === "tsumiki") {
       ctx.fillStyle = COLORS.tsumikiCream;
       ctx.fillRect(0, 0, w, h);
-      // ゴールドストライプ
-      ctx.globalAlpha = 0.04;
-      for (let x = 0; x < w; x += 40) {
-        ctx.fillStyle = COLORS.gold;
-        ctx.fillRect(x, 0, 20, h);
-      }
-      ctx.globalAlpha = 1;
+      this.drawCheckerboard(w, h, COLORS.gold);
     } else {
       ctx.fillStyle = COLORS.cream;
       ctx.fillRect(0, 0, w, h);
-      // Circus tent stripes
-      ctx.globalAlpha = 0.04;
-      for (let x = 0; x < w; x += 40) {
-        ctx.fillStyle = COLORS.red;
-        ctx.fillRect(x, 0, 20, h);
-      }
-      ctx.globalAlpha = 1;
+      this.drawCheckerboard(w, h, COLORS.red);
     }
+  }
+
+  // 市松模様 (チェッカーボード) を背景に薄く描きます。
+  // 透明なたまのレンズ効果で背景が歪む様子を分かりやすくする狙いがあります。
+  private drawCheckerboard(w: number, h: number, color: string): void {
+    const ctx = this.ctx;
+    const tile = 40;
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = color;
+    for (let row = 0, y = 0; y < h; row++, y += tile) {
+      // 行ごとに半マスずらして市松に並べます。
+      for (let x = (row % 2) * tile; x < w; x += tile * 2) {
+        ctx.fillRect(x, y, tile, tile);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawTitleScreen(w: number, h: number, selectedObstacles: Set<ObstacleType>, speedStep?: number, restitutionStep?: number, gameMode: GameMode = "drawing", tsumikiFreeMode = false): void {
@@ -279,6 +294,14 @@ export class Renderer {
     const ctx = this.ctx;
     const prevAlpha = ctx.globalAlpha;
     ctx.globalAlpha = opacity;
+
+    // 透明なたま (colorIndex >= TRANSPARENT_OFFSET) はレンズ効果で背景を歪ませて描きます。
+    if (colorIndex !== undefined && colorIndex >= TRANSPARENT_OFFSET) {
+      this.drawGlassMarble(x, y, r, colorIndex, opacity);
+      ctx.globalAlpha = prevAlpha;
+      return;
+    }
+
     const tone = MARBLE_TONES[colorIndex ?? 2]!;
 
     const grad = ctx.createRadialGradient(
@@ -310,6 +333,58 @@ export class Renderer {
     ctx.fill();
 
     ctx.globalAlpha = prevAlpha;
+  }
+
+  // ガラス玉のレンズ効果を描きます。
+  // 玉の真下にある canvas の絵を拡大コピーして円内に描き、屈折で背景が歪んで見えるようにします。
+  // そのうえに色味・ハイライト・縁を薄く重ねてガラスの質感を出します。
+  private drawGlassMarble(x: number, y: number, r: number, colorIndex: number, opacity = 1): void {
+    const ctx = this.ctx;
+    const canvas = ctx.canvas;
+    const tone = MARBLE_TONES[colorIndex]!;
+
+    // 拡大率。1 より大きいと凸レンズのように背景が拡大されて見えます。
+    const magnify = 1.8;
+    // コピー元の矩形 (玉領域を拡大率で割った範囲)。
+    const srcSize = (r * 2) / magnify;
+    const srcX = x - srcSize / 2;
+    const srcY = y - srcSize / 2;
+
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    // 円形にクリップして玉の内側だけにレンズ効果を適用します。
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // canvas 自身の玉領域を拡大コピーします。この時点で背景・障害物は既に描かれています。
+    ctx.drawImage(canvas, srcX, srcY, srcSize, srcSize, x - r, y - r, r * 2, r * 2);
+
+    // 色味を薄く重ねて、ガラスがほのかに着色しているように見せます。
+    const grad = ctx.createRadialGradient(x - r * 0.15, y - r * 0.2, 0, x, y, r);
+    grad.addColorStop(0, tone[0]);
+    grad.addColorStop(0.5, tone[1]);
+    grad.addColorStop(0.8, tone[2]);
+    grad.addColorStop(1, tone[3]);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 縁を少し濃くしてガラスの厚みを表現します。クリップ内で描いて opacity を統一します。
+    ctx.beginPath();
+    ctx.arc(x, y, r - 0.5, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = tone[2]!;
+    ctx.stroke();
+
+    // ハイライト (光の反射)。
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.3, r * 0.2, -0.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fill();
+
+    ctx.restore();
   }
 
   drawRainbowMarble(x: number, y: number, r: number): void {
