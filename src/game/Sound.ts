@@ -64,13 +64,14 @@ export class Sound {
   // C4 scale frequencies: ド レ ミ ファ ソ ラ シ ド
   private static readonly SCALE = [262, 294, 330, 349, 392, 440, 494, 523];
 
-  goal(goalsScored: number): void {
+  goal(goalsScored: number, octaveShift = 0): void {
     // goalsScored 1..24 maps to 3 octaves of do-re-mi-fa-so-la-si-do
     // After 24 stays at the top note
     const idx = Math.min(goalsScored - 1, 23);
-    const octave = Math.floor(idx / 8);
+    const octave = Math.floor(idx / 8) + octaveShift;
     const noteIdx = idx % 8;
-    const freq = Sound.SCALE[noteIdx]! * Math.pow(2, octave);
+    // オクターブが負にならないよう 0 でクランプします。
+    const freq = Sound.SCALE[noteIdx]! * Math.pow(2, Math.max(0, octave));
 
     const ctx = this.getCtx();
     const osc = ctx.createOscillator();
