@@ -1,7 +1,8 @@
 {
   "name": "ビー玉ころころ",
   "short_name": "ビー玉",
-  "start_url": "/",
+  "start_url": "/bdama/",
+  "scope": "/bdama/",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#FFF8E1",
