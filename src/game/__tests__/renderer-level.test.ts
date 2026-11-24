@@ -124,6 +124,14 @@ describe("ステージ固有 UI テスト", () => {
       }
     });
 
+    it("透明なたま 7色（colorIndex 8〜14）がエラーなく描画されます", () => {
+      for (let i = 8; i <= 14; i++) {
+        expect(() => {
+          renderer.drawMarble(100, 100, 17, i);
+        }).not.toThrow();
+      }
+    });
+
     it("opacity を指定して描画できます", () => {
       expect(() => {
         renderer.drawMarble(100, 100, 17, 0, 0.6);

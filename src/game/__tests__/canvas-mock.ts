@@ -47,6 +47,7 @@ export function createMockContext(): CanvasRenderingContext2D {
       },
     ),
     strokeText: vi.fn(),
+    drawImage: vi.fn(),
     measureText: vi.fn(() => ({ width: 50 })),
 
     // 変換
@@ -66,6 +67,7 @@ export function createMockContext(): CanvasRenderingContext2D {
     })),
 
     // その他
+    canvas: { width: 800, height: 600 },
     clip: vi.fn(),
     getImageData: vi.fn(),
     putImageData: vi.fn(),
